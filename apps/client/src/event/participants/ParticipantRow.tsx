@@ -25,8 +25,9 @@ export function ParticipantRow({
   participant,
   event,
   setEvent,
+  mailsBlocked,
   mailSending,
-}: EventSectionProps & { participant: Participant; mailSending: MailSending }) {
+}: EventSectionProps & { participant: Participant; mailsBlocked: boolean; mailSending: MailSending }) {
   const drawn = event.drawnAt !== null;
 
   return (
@@ -39,7 +40,14 @@ export function ParticipantRow({
         <EditDialog participant={participant} emailOnly={drawn} setEvent={setEvent} />
         {!drawn && <RemoveDialog participant={participant} event={event} setEvent={setEvent} />}
       </div>
-      {drawn && <MailStatus participant={participant} setEvent={setEvent} mailSending={mailSending} />}
+      {drawn && (
+        <MailStatus
+          participant={participant}
+          setEvent={setEvent}
+          mailsBlocked={mailsBlocked}
+          mailSending={mailSending}
+        />
+      )}
     </li>
   );
 }

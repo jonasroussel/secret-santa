@@ -13,8 +13,13 @@ import type { EventSectionProps, MailSending } from '../types.ts';
 export function MailStatus({
   participant,
   setEvent,
+  mailsBlocked,
   mailSending,
-}: Pick<EventSectionProps, 'setEvent'> & { participant: Participant; mailSending: MailSending }) {
+}: Pick<EventSectionProps, 'setEvent'> & {
+  participant: Participant;
+  mailsBlocked: boolean;
+  mailSending: MailSending;
+}) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +49,7 @@ export function MailStatus({
         ) : (
           <StatusBadge participant={participant} />
         )}
-        {participant.mailStatus !== 'not_sent' && (
+        {!mailsBlocked && participant.mailStatus !== 'not_sent' && (
           <Button variant='link' size='sm' onClick={() => void resend()} disabled={pending || mailSending !== null}>
             {pending ? 'Envoi…' : 'Renvoyer le mail'}
           </Button>

@@ -9,6 +9,7 @@ const alertVariants = cva(
       variant: {
         default: 'bg-secondary text-secondary-foreground *:[svg]:text-[#f3d99b]',
         soft: 'bg-success-soft text-success *:[svg]:text-current',
+        warning: 'bg-pending text-pending-foreground *:[svg]:text-current',
       },
     },
     defaultVariants: {

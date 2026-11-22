@@ -12,8 +12,10 @@ import { ExclusionsSection } from './exclusions/ExclusionsSection.tsx';
 import { ParticipantsSection } from './participants/ParticipantsSection.tsx';
 import type { MailSending } from './types.ts';
 
-export function EventView({ initial }: { initial: SecretSantaEvent }) {
+export function EventView({ initial, mailTestMode }: { initial: SecretSantaEvent; mailTestMode: boolean }) {
   const [event, setEvent] = useState(initial);
+  // Mails of a draw the admins saw in test mode must not reach the real participants.
+  const mailsBlocked = event.drawTested && !mailTestMode;
   // Lives here, not in DrawButton, so it can fade out over the drawn page that replaces the button.
   const [drawAnimation, setDrawAnimation] = useState<DrawAnimationState>(null);
   const [mailSending, setMailSending] = useState<MailSending>(null);
@@ -49,8 +51,13 @@ export function EventView({ initial }: { initial: SecretSantaEvent }) {
       ) : (
         <>
           <EventSummary {...sectionProps} />
-          <DrawnPanel {...sectionProps} mailSending={mailSending} setMailSending={setMailSending} />
-          <ParticipantsSection {...sectionProps} mailSending={mailSending} />
+          <DrawnPanel
+            {...sectionProps}
+            mailsBlocked={mailsBlocked}
+            mailSending={mailSending}
+            setMailSending={setMailSending}
+          />
+          <ParticipantsSection {...sectionProps} mailsBlocked={mailsBlocked} mailSending={mailSending} />
           <ExclusionsSection {...sectionProps} />
           <CancelDrawDialog {...sectionProps} disabled={isSending} />
         </>

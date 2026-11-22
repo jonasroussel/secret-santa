@@ -74,7 +74,7 @@ export function AdminPage() {
         </>
       )}
       {state.status === 'empty' && <CreateEventCard onCreated={(event) => setState({ status: 'ready', event })} />}
-      {state.status === 'ready' && <EventView initial={state.event} />}
+      {state.status === 'ready' && <EventView initial={state.event} mailTestMode={mailTestMode} />}
     </main>
   );
 }

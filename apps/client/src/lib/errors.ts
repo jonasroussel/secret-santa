@@ -12,6 +12,7 @@ const messages: Record<ApiErrorCode, string> = {
   not_drawn: 'Le tirage n’a pas encore été fait.',
   not_enough_participants: 'Il faut au moins 3 participants pour faire le tirage.',
   draw_impossible: 'Le tirage est impossible avec ces exclusions. Retire un couple et réessaie.',
+  draw_tested: 'Ce tirage a été envoyé en mode test. Annule-le et refais-le avant d’envoyer les vrais mails.',
   network: 'Connexion impossible. Vérifie ta connexion internet et réessaie.',
 };
 

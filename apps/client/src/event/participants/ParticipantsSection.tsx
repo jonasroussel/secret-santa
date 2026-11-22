@@ -10,8 +10,9 @@ import { ParticipantRow } from './ParticipantRow.tsx';
 export function ParticipantsSection({
   event,
   setEvent,
+  mailsBlocked = false,
   mailSending = null,
-}: EventSectionProps & { mailSending?: MailSending }) {
+}: EventSectionProps & { mailsBlocked?: boolean; mailSending?: MailSending }) {
   async function add(input: ParticipantInput) {
     const result = await api<Participant>('/api/event/participants', { method: 'POST', body: input });
     if (!result.ok) return errorMessage(result.error);
@@ -35,6 +36,7 @@ export function ParticipantsSection({
               participant={participant}
               event={event}
               setEvent={setEvent}
+              mailsBlocked={mailsBlocked}
               mailSending={mailSending}
             />
           ))}

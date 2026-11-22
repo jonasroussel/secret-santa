@@ -1,5 +1,5 @@
 import type { Participant } from '@secret-santa/shared';
-import { LoaderCircleIcon, LockIcon, SendIcon } from 'lucide-react';
+import { LoaderCircleIcon, LockIcon, SendIcon, TriangleAlertIcon } from 'lucide-react';
 import { useState } from 'react';
 
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -9,6 +9,7 @@ import { api } from '@/lib/api.ts';
 import type { EventSectionProps, MailSending } from '../types.ts';
 
 type Props = EventSectionProps & {
+  mailsBlocked: boolean;
   mailSending: MailSending;
   setMailSending: (sending: MailSending) => void;
 };
@@ -16,7 +17,7 @@ type Props = EventSectionProps & {
 const needsMail = (participant: Participant) =>
   participant.mailStatus === 'not_sent' || participant.mailStatus === 'failed';
 
-export function DrawnPanel({ event, setEvent, mailSending, setMailSending }: Props) {
+export function DrawnPanel({ event, setEvent, mailsBlocked, mailSending, setMailSending }: Props) {
   const [summary, setSummary] = useState<string | null>(null);
   const toSend = event.participants.filter(needsMail).length;
   const sent = event.participants.length - toSend;
@@ -53,6 +54,15 @@ export function DrawnPanel({ event, setEvent, mailSending, setMailSending }: Pro
         <AlertTitle>Le tirage est fait.</AlertTitle>
         <AlertDescription>Personne, pas même toi, ne voit qui offre à qui.</AlertDescription>
       </Alert>
+      {mailsBlocked && (
+        <Alert variant='warning'>
+          <TriangleAlertIcon />
+          <AlertDescription>
+            Ce tirage a été envoyé en mode test : les admins ont vu les résultats. Annule le tirage et refais-le avant
+            d’envoyer les vrais mails.
+          </AlertDescription>
+        </Alert>
+      )}
       {sent > 0 && (
         <p className='text-muted-foreground'>
           <strong className='text-foreground'>
@@ -61,7 +71,7 @@ export function DrawnPanel({ event, setEvent, mailSending, setMailSending }: Pro
           {opened === 1 ? 'mail déjà ouvert.' : 'mails déjà ouverts.'}
         </p>
       )}
-      {(toSend > 0 || mailSending) && (
+      {!mailsBlocked && (toSend > 0 || mailSending) && (
         <Button size='lg' className='w-full' onClick={() => void sendMails()} disabled={mailSending !== null}>
           {mailSending ? <LoaderCircleIcon className='animate-spin' /> : <SendIcon />}
           {mailSending ? `Envoi ${mailSending.position} sur ${mailSending.total}…` : sendLabel}
