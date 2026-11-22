@@ -3,7 +3,13 @@ import { createPortal } from 'react-dom';
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export const drawAnimationDuration = () => (reducedMotion() ? 600 : 2600);
+const duration = 5400;
+
+export const drawAnimationDuration = () => (reducedMotion() ? 600 : duration);
+
+const at = (ms: number) => ms / duration;
+// Easing on each step, not on the whole timeline, so every move keeps the same pace.
+const eased = (keyframes: Keyframe[]) => keyframes.map((keyframe) => ({ easing: 'ease-in-out', ...keyframe }));
 
 const cardWidth = 96;
 const cardHeight = 56;
@@ -24,8 +30,7 @@ export function DrawAnimation({ names }: { names: string[] }) {
 
   useLayoutEffect(() => {
     const root = stage.current!;
-    const duration = drawAnimationDuration();
-    const timing = { duration, fill: 'both', easing: 'ease-in-out' } as const;
+    const timing = { duration, fill: 'both' } as const;
     const animations = [root.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, fill: 'both' })];
     if (!reduced) {
       const rows = Math.ceil(cards.length / columns);
@@ -36,18 +41,18 @@ export function DrawAnimation({ names }: { names: string[] }) {
         const scatter = () => pose(spread(120), spread(110) + cardsY, spread(25), 180, 1);
         animations.push(
           card.animate(
-            [
+            eased([
               { offset: 0, opacity: 0, transform: pose(x, y, tilt, 0, 0.6) },
-              { offset: 0.1, opacity: 1, transform: pose(x, y, tilt, 0, 1) },
-              { offset: 0.25, transform: pose(x, y, tilt, 0, 1) },
-              { offset: 0.36, transform: pose(x, y, tilt, 180, 1) },
-              { offset: 0.5, transform: scatter() },
-              { offset: 0.62, transform: scatter() },
-              { offset: 0.74, transform: scatter() },
-              { offset: 0.84, opacity: 1, transform: pose(0, boxY - 50, 0, 180, 0.35) },
-              { offset: 0.88, opacity: 0, transform: pose(0, boxY - 10, 0, 180, 0.2) },
+              { offset: at(400), opacity: 1, transform: pose(x, y, tilt, 0, 1) },
+              { offset: at(1100), transform: pose(x, y, tilt, 0, 1) },
+              { offset: at(1700), transform: pose(x, y, tilt, 180, 1) },
+              { offset: at(2350), transform: scatter() },
+              { offset: at(3000), transform: scatter() },
+              { offset: at(3650), transform: scatter() },
+              { offset: at(4100), opacity: 1, transform: pose(0, boxY - 50, 0, 180, 0.35) },
+              { offset: at(4300), opacity: 0, transform: pose(0, boxY - 10, 0, 180, 0.2) },
               { offset: 1, opacity: 0, transform: pose(0, boxY - 10, 0, 180, 0.2) },
-            ],
+            ]),
             timing,
           ),
         );
@@ -57,30 +62,31 @@ export function DrawAnimation({ names }: { names: string[] }) {
       const bow = root.querySelector('[data-bow]')!;
       animations.push(
         box.animate(
-          [
+          eased([
             { offset: 0, opacity: 0, transform: 'translateY(30px)' },
-            { offset: 0.62, opacity: 0, transform: 'translateY(30px)' },
-            { offset: 0.72, opacity: 1, transform: 'translateY(0)' },
+            { offset: at(3000), opacity: 0, transform: 'translateY(30px)' },
+            { offset: at(3500), opacity: 1, transform: 'translateY(0)' },
             { offset: 1, opacity: 1, transform: 'translateY(0)' },
-          ],
+          ]),
           timing,
         ),
         lid.animate(
-          [
+          eased([
             { offset: 0, transform: 'translate(-4px, -6px) rotate(-28deg)' },
-            { offset: 0.88, transform: 'translate(-4px, -6px) rotate(-28deg)' },
-            { offset: 0.94, transform: 'translate(0, 0) rotate(0deg)' },
+            { offset: at(4300), transform: 'translate(-4px, -6px) rotate(-28deg)' },
+            { offset: at(4600), transform: 'translate(0, 0) rotate(0deg)' },
             { offset: 1, transform: 'translate(0, 0) rotate(0deg)' },
-          ],
+          ]),
           timing,
         ),
         bow.animate(
-          [
+          eased([
             { offset: 0, transform: 'scale(0)' },
-            { offset: 0.93, transform: 'scale(0)' },
-            { offset: 0.97, transform: 'scale(1.25)' },
+            { offset: at(4600), transform: 'scale(0)' },
+            { offset: at(4800), transform: 'scale(1.25)' },
+            { offset: at(4950), transform: 'scale(1)' },
             { offset: 1, transform: 'scale(1)' },
-          ],
+          ]),
           timing,
         ),
       );
