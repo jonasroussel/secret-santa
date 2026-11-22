@@ -115,14 +115,12 @@ export function DrawAnimation({ names, leaving, setDrawAnimation }: Props) {
       }),
     ];
     if (!reduced) {
+      const gift = { duration: 450, easing: 'ease-in-out', fill: 'forwards' } as const;
       exits.push(
         root
           .querySelector('[data-box]')!
-          .animate([{ transform: 'scale(1)' }, { transform: 'scale(0.8) translateY(-16px)', opacity: 0 }], {
-            duration: 450,
-            easing: 'ease-in-out',
-            fill: 'forwards',
-          }),
+          .animate([{ transform: 'scale(1)' }, { transform: 'scale(0.8) translateY(-16px)', opacity: 0 }], gift),
+        root.querySelector('[data-caption]')!.animate([{ opacity: 1 }, { opacity: 0 }], gift),
       );
     }
     exits[0]!.finished.then(
@@ -164,6 +162,7 @@ export function DrawAnimation({ names, leaving, setDrawAnimation }: Props) {
           </div>
         </div>
         <p
+          data-caption
           className='font-heading text-primary absolute w-64 -translate-x-1/2 text-center text-xl italic'
           style={{ top: boxY + 100 }}
         >
