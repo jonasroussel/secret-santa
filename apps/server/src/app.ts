@@ -152,9 +152,6 @@ export function createApp({
       POST: withSession(() => resultResponse(DrawUseCase.draw(draws))),
       DELETE: withSession(() => resultResponse(DrawUseCase.cancel(draws))),
     },
-    '/api/event/mails': {
-      POST: withSession(async () => resultResponse(await DrawUseCase.sendAll(draws))),
-    },
 
     '/api/mail/open/:token': {
       GET: (request: BunRequest<'/api/mail/open/:token'>) => {

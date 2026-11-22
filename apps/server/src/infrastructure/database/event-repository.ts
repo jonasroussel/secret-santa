@@ -144,20 +144,18 @@ export class EventRepository {
     })();
   }
 
-  /** The mail of this participant, or without one, every mail not sent yet. */
-  mailsToSend(giverId: number | null): MailToSend[] {
-    const where = giverId === null ? `a.mail_status IN ('not_sent', 'failed')` : 'a.giver_id = ?';
-    return this.#database
-      .query<Omit<MailToSend, 'receivedCancelledDraw'> & { receivedCancelledDraw: number }, number[]>(
+  mailToSend(giverId: number): MailToSend | null {
+    const row = this.#database
+      .query<Omit<MailToSend, 'receivedCancelledDraw'> & { receivedCancelledDraw: number }, [number]>(
         `SELECT a.giver_id AS giverId, giver.name AS giverName, giver.email AS giverEmail,
            receiver.name AS receiverName, giver.received_cancelled_draw AS receivedCancelledDraw
          FROM assignments a
          JOIN participants giver ON giver.id = a.giver_id
          JOIN participants receiver ON receiver.id = a.receiver_id
-         WHERE ${where} ORDER BY a.giver_id`,
+         WHERE a.giver_id = ?`,
       )
-      .all(...(giverId === null ? [] : [giverId]))
-      .map((row) => ({ ...row, receivedCancelledDraw: row.receivedCancelledDraw === 1 }));
+      .get(giverId);
+    return row && { ...row, receivedCancelledDraw: row.receivedCancelledDraw === 1 };
   }
 
   recordMailSent(giverId: number, tokenHash: string, now: number): void {

@@ -66,8 +66,12 @@ function startApp() {
       return (await response.json()) as Participant;
     };
     const event = async () => (await (await as('GET', '/api/event')).json()) as SecretSantaEvent;
+    /** Like the page: one participant after the other, in display order. */
+    const sendMails = async () => {
+      for (const { id } of (await event()).participants) await as('POST', `/api/event/participants/${id}/mail`);
+    };
     mails.length = 0;
-    return { as, add, event };
+    return { as, add, event, sendMails };
   };
 
   return { call, clock, mails, failingEmails, requestCode, verify, organizer };
@@ -158,7 +162,7 @@ test('deleting a participant removes its exclusions', async () => {
 
 test('every draw respects self-giving and the exclusions, both ways', async () => {
   const { organizer, mails } = startApp();
-  const { as, add } = await organizer();
+  const { as, add, sendMails } = await organizer();
   const [anne, paul, marie, luc] = [await add('Anne'), await add('Paul'), await add('Marie'), await add('Luc')];
   await as('POST', '/api/event/exclusions', { participantIds: [anne.id, paul.id] });
   await as('POST', '/api/event/exclusions', { participantIds: [marie.id, luc.id] });
@@ -168,7 +172,7 @@ test('every draw respects self-giving and the exclusions, both ways', async () =
   for (let run = 0; run < 40; run++) {
     mails.length = 0;
     expect((await as('POST', '/api/event/draw')).status).toBe(200);
-    await as('POST', '/api/event/mails');
+    await sendMails();
     const pairs = mails.map((mail) => `${giverIn(mail)}→${receiverIn(mail)}`);
     expect(new Set(mails.map(receiverIn)).size).toBe(4);
     for (const pair of pairs) {
@@ -219,10 +223,10 @@ test('after the draw the list is locked, except for emails', async () => {
 
 test('after a cancelled draw whose mails went out, the new mails say the draw was redone', async () => {
   const { organizer, mails } = startApp();
-  const { as, add } = await organizer();
+  const { as, add, sendMails } = await organizer();
   for (const name of ['Anne', 'Paul', 'Marie']) await add(name);
   await as('POST', '/api/event/draw');
-  await as('POST', '/api/event/mails');
+  await sendMails();
   expect(mails.some((mail) => mail.text.includes('tirage a été refait'))).toBe(false);
 
   const cancel = await as('DELETE', '/api/event/draw');
@@ -230,7 +234,7 @@ test('after a cancelled draw whose mails went out, the new mails say the draw wa
   expect((await as('POST', '/api/event/participants', { name: 'Luc', email: 'luc@example.com' })).status).toBe(201);
   mails.length = 0;
   await as('POST', '/api/event/draw');
-  await as('POST', '/api/event/mails');
+  await sendMails();
 
   const redone = mails.filter((mail) => mail.text.includes('Le tirage a été refait'));
   expect(redone.map((mail) => mail.to).toSorted()).toEqual([
@@ -242,10 +246,10 @@ test('after a cancelled draw whose mails went out, the new mails say the draw wa
 
 test('the organizer never sees who gives to whom', async () => {
   const { organizer } = startApp();
-  const { as, add, event } = await organizer();
+  const { as, add, event, sendMails } = await organizer();
   for (const name of ['Anne', 'Paul', 'Marie']) await add(name);
   await as('POST', '/api/event/draw');
-  await as('POST', '/api/event/mails');
+  await sendMails();
 
   const { participants, ...details } = await event();
 
@@ -264,10 +268,10 @@ test('the organizer never sees who gives to whom', async () => {
 
 test('only the latest mail of a participant counts as opened', async () => {
   const { organizer, mails, call } = startApp();
-  const { as, add, event } = await organizer();
+  const { as, add, event, sendMails } = await organizer();
   const [anne] = [await add('Anne'), await add('Paul'), await add('Marie')];
   await as('POST', '/api/event/draw');
-  await as('POST', '/api/event/mails');
+  await sendMails();
   const firstPixel = pixelIn(mails.find((mail) => mail.to === anne.email)!);
   await as('POST', `/api/event/participants/${anne.id}/mail`);
   const latestPixel = pixelIn(mails.at(-1)!);
@@ -282,19 +286,22 @@ test('only the latest mail of a participant counts as opened', async () => {
   expect([opened.mailStatus, opened.mailOpenedAt]).toEqual(['opened', new Date(Date.UTC(2026, 10, 22)).toISOString()]);
 });
 
-test('a mail the server could not send is marked failed and sent again next time', async () => {
+test('a mail the server could not send is marked failed until it is sent again', async () => {
   const { organizer, failingEmails, mails } = startApp();
-  const { as, add } = await organizer();
+  const { as, add, event } = await organizer();
   const [, paul] = [await add('Anne'), await add('Paul'), await add('Marie')];
   await as('POST', '/api/event/draw');
   failingEmails.add(paul.email);
 
-  const first = (await (await as('POST', '/api/event/mails')).json()) as SecretSantaEvent;
-  expect(first.participants.map((participant) => participant.mailStatus)).toEqual(['sent', 'failed', 'sent']);
+  const failed = (await (await as('POST', `/api/event/participants/${paul.id}/mail`)).json()) as Participant;
+  expect([failed.mailStatus, failed.mailSentAt, mails]).toEqual(['failed', null, []]);
 
   failingEmails.clear();
-  mails.length = 0;
-  const second = (await (await as('POST', '/api/event/mails')).json()) as SecretSantaEvent;
+  await as('POST', `/api/event/participants/${paul.id}/mail`);
   expect(mails.map((mail) => mail.to)).toEqual([paul.email]);
-  expect(second.participants.map((participant) => participant.mailStatus)).toEqual(['sent', 'sent', 'sent']);
+  expect((await event()).participants.map((participant) => participant.mailStatus)).toEqual([
+    'not_sent',
+    'sent',
+    'not_sent',
+  ]);
 });

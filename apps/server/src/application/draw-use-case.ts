@@ -35,20 +35,11 @@ export class DrawUseCase {
     return ok(repository.find()!);
   }
 
-  /** Sends, one after the other, every mail not sent yet or failed. */
-  static async sendAll(deps: DrawDeps): Promise<Result<SecretSantaEvent>> {
-    const event = deps.repository.find();
-    if (!event) return fail('not_found');
-    if (!event.drawnAt) return fail('not_drawn');
-    for (const mail of deps.repository.mailsToSend(null)) await DrawUseCase.#send(deps, event, mail);
-    return ok(deps.repository.find()!);
-  }
-
   static async sendOne(deps: DrawDeps, participantId: number): Promise<Result<Participant>> {
     const event = deps.repository.find();
     if (!event) return fail('not_found');
     if (!event.drawnAt) return fail('not_drawn');
-    const [mail] = deps.repository.mailsToSend(participantId);
+    const mail = deps.repository.mailToSend(participantId);
     if (!mail) return fail('not_found');
     await DrawUseCase.#send(deps, event, mail);
     return ok(deps.repository.findParticipant(participantId)!);
