@@ -20,6 +20,8 @@ const staticFiles = config.clientDistPath ? createStaticFiles(config.clientDistP
 
 const server = Bun.serve({
   port: config.port,
+  // Seconds; above the SMTP timeouts, so a slow mail send ends with a recorded failure rather than a dropped request.
+  idleTimeout: 120,
   routes: createApp({
     version,
     database,
