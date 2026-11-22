@@ -34,7 +34,7 @@ export function VerifyLink({ token }: { token: string }) {
         <header>
           <h1 className='text-primary text-[2rem] leading-tight font-semibold'>Ce lien n’est plus valable</h1>
           <p className='text-muted-foreground mt-2'>
-            Il a déjà été utilisé ou il a expiré. Demandez-en un nouveau, il arrivera dans quelques instants.
+            Il a déjà été utilisé ou il a expiré. Demandes-en un nouveau, il arrivera dans quelques instants.
           </p>
         </header>
         <Button onClick={() => location.assign('/connexion')}>Recevoir un nouveau lien</Button>

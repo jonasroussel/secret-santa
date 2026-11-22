@@ -17,9 +17,9 @@ export function CreateEventCard({ onCreated }: { onCreated: (event: SecretSantaE
   return (
     <Card>
       <CardHeader>
-        <CardTitle className='text-primary text-2xl'>Votre Secret Santa</CardTitle>
+        <CardTitle className='text-primary text-2xl'>Ton Secret Santa</CardTitle>
         <CardDescription className='text-base'>
-          Commencez par lui donner un nom et une date. Vous ajouterez ensuite les participants.
+          Commence par lui donner un nom et une date. Tu ajouteras ensuite les participants.
         </CardDescription>
       </CardHeader>
       <CardContent>

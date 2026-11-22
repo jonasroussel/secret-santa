@@ -7,7 +7,7 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { api } from '@/lib/api.ts';
 import { errorMessage } from '@/lib/errors.ts';
 
-const samePerson = 'Choisissez deux personnes différentes.';
+const samePerson = 'Choisis deux personnes différentes.';
 
 type Props = {
   participants: Participant[];

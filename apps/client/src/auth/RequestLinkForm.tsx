@@ -28,19 +28,19 @@ export function RequestLinkForm() {
     <>
       <header>
         <h1 className='text-primary text-[2rem] leading-tight font-semibold'>Connexion</h1>
-        <p className='text-muted-foreground mt-2'>Recevez par email un lien pour gérer votre Secret Santa.</p>
+        <p className='text-muted-foreground mt-2'>Reçois par email un lien pour gérer ton Secret Santa.</p>
       </header>
       {sent ? (
         <Alert>
           <MailCheckIcon />
           <AlertDescription>
-            Si cette adresse est autorisée, un lien de connexion vient de vous être envoyé. Il est valable 15 minutes.
+            Si cette adresse est autorisée, un lien de connexion vient de t’être envoyé. Il est valable 15 minutes.
           </AlertDescription>
         </Alert>
       ) : (
         <form onSubmit={submit} onInput={() => setError(null)} className='flex flex-col gap-6'>
           <Field data-invalid={error !== null}>
-            <FieldLabel htmlFor='email'>Votre adresse email</FieldLabel>
+            <FieldLabel htmlFor='email'>Ton adresse email</FieldLabel>
             <Input id='email' name='email' type='email' autoComplete='email' required aria-invalid={error !== null} />
             <FieldError>{error}</FieldError>
           </Field>
