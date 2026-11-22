@@ -35,8 +35,14 @@ ENV NODE_ENV=production \
     DATABASE_PATH=/data/secret-santa.sqlite \
     CLIENT_DIST_PATH=/app/apps/client/dist
 
-# Bun runs the TypeScript sources directly. No install: the server has no runtime package, it only imports types
-# from the shared package, and those imports are erased.
+# Only the server's runtime packages (nodemailer); every workspace manifest is copied so the lockfile matches. Bun
+# runs the TypeScript sources directly. The server only imports types from the shared package, and those imports
+# are erased, so its sources are not needed.
+COPY package.json bun.lock ./
+COPY apps/client/package.json apps/client/
+COPY apps/server/package.json apps/server/
+COPY packages/shared/package.json packages/shared/
+RUN bun install --frozen-lockfile --ignore-scripts --production --filter @secret-santa/server
 COPY apps/server/src apps/server/src
 COPY --from=client /app/apps/client/dist apps/client/dist
 COPY --from=version /VERSION ./VERSION
