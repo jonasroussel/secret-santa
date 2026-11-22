@@ -7,19 +7,24 @@ import { VerifyCodeForm } from './VerifyCodeForm.tsx';
 
 export function LoginPage() {
   const [email, setEmail] = useState('');
-  const [codeSent, setCodeSent] = useState(false);
+  // 'too_many_requests': no new code was sent, but one from an earlier mail may still be valid.
+  const [codeStep, setCodeStep] = useState<'sent' | 'too_many_requests' | null>(null);
 
   return (
     <main className='mx-auto flex max-w-xl flex-col gap-6 px-6 py-8'>
       <Brand />
-      {codeSent ? (
-        <VerifyCodeForm email={email} onChangeEmail={() => setCodeSent(false)} />
+      {codeStep ? (
+        <VerifyCodeForm
+          email={email}
+          tooManyRequests={codeStep === 'too_many_requests'}
+          onChangeEmail={() => setCodeStep(null)}
+        />
       ) : (
         <RequestCodeForm
           initialEmail={email}
-          onSent={(sentTo) => {
+          onSent={(sentTo, step) => {
             setEmail(sentTo);
-            setCodeSent(true);
+            setCodeStep(step);
           }}
         />
       )}

@@ -6,7 +6,9 @@ import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api.ts';
 import { errorMessage } from '@/lib/errors.ts';
 
-export function RequestCodeForm({ initialEmail, onSent }: { initialEmail: string; onSent: (email: string) => void }) {
+type Props = { initialEmail: string; onSent: (email: string, step: 'sent' | 'too_many_requests') => void };
+
+export function RequestCodeForm({ initialEmail, onSent }: Props) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,8 +19,13 @@ export function RequestCodeForm({ initialEmail, onSent }: { initialEmail: string
     setError(null);
     const result = await api('/api/auth/request-code', { method: 'POST', body: { email } });
     setPending(false);
-    if (result.ok) onSent(email);
-    else setError(errorMessage(result.error, { invalid_input: 'Cette adresse email n’est pas valide.' }));
+    if (result.ok) {
+      onSent(email, 'sent');
+    } else if (result.error === 'too_many_requests') {
+      onSent(email, 'too_many_requests');
+    } else {
+      setError(errorMessage(result.error, { invalid_input: 'Cette adresse email n’est pas valide.' }));
+    }
   }
 
   return (

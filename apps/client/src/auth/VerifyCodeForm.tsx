@@ -6,7 +6,9 @@ import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api.ts';
 import { errorMessage } from '@/lib/errors.ts';
 
-export function VerifyCodeForm({ email, onChangeEmail }: { email: string; onChangeEmail: () => void }) {
+type Props = { email: string; tooManyRequests: boolean; onChangeEmail: () => void };
+
+export function VerifyCodeForm({ email, tooManyRequests, onChangeEmail }: Props) {
   const [code, setCode] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,7 +24,11 @@ export function VerifyCodeForm({ email, onChangeEmail }: { email: string; onChan
       return;
     }
     setPending(false);
-    setError(errorMessage(result.error));
+    setError(
+      errorMessage(result.error, {
+        too_many_requests: 'Trop de codes erronés aujourd’hui. Réessaie demain.',
+      }),
+    );
   }
 
   async function resend() {
@@ -42,8 +48,14 @@ export function VerifyCodeForm({ email, onChangeEmail }: { email: string; onChan
       <header>
         <h1 className='text-primary text-[2rem] leading-tight font-semibold'>Ton code</h1>
         <p className='text-muted-foreground mt-2'>
-          Un code à 6 chiffres vient de t’être envoyé à <strong className='text-foreground'>{email}</strong>. Il est
-          valable 15 minutes.
+          {tooManyRequests ? (
+            'Trop de demandes de code. Si tu as déjà reçu un code, tu peux l’entrer ici.'
+          ) : (
+            <>
+              Un code à 6 chiffres vient de t’être envoyé à <strong className='text-foreground'>{email}</strong>. Il est
+              valable 15 minutes.
+            </>
+          )}
         </p>
       </header>
       <form onSubmit={submit} className='flex flex-col gap-6'>
