@@ -30,7 +30,9 @@ RUN cd /git \
 
 FROM oven/bun:1.4.2-slim
 WORKDIR /app
+# TRUST_PROXY: production runs behind Caddy, which sends the client address in X-Forwarded-For.
 ENV NODE_ENV=production \
+    TRUST_PROXY=1 \
     PORT=3629 \
     DATABASE_PATH=/data/secret-santa.sqlite \
     CLIENT_DIST_PATH=/app/apps/client/dist

@@ -26,10 +26,13 @@ export type AppDeps = {
   adminEmails: ReadonlySet<string>;
   /** Participant mails go to the admins instead of the participants. */
   mailTestMode: boolean;
+  /** The client's address, for the per-address sign-in limits (behind a proxy, the address it reports). */
+  clientIp: (request: Request) => string;
 };
 
 const SESSION_COOKIE = 'session';
 const PIXEL = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+const MINUTE = 60 * 1000;
 
 export function createApp({
   version,
@@ -41,12 +44,19 @@ export function createApp({
   secureCookie,
   adminEmails,
   mailTestMode,
+  clientIp,
 }: AppDeps) {
+  const isAdmin = (email: string) => adminEmails.has(email);
   const auth: AuthDeps = {
     repository: new AuthRepository(database),
     clock,
     mailer,
-    limiter: new RateLimiter(clock, 5, 15 * 60 * 1000),
+    limits: {
+      requestsPerIp: new RateLimiter(clock, 5, 15 * MINUTE),
+      requestsPerEmail: new RateLimiter(clock, 20, 60 * MINUTE, isAdmin),
+      failuresPerIp: new RateLimiter(clock, 20, 24 * 60 * MINUTE),
+      failuresPerEmail: new RateLimiter(clock, 100, 24 * 60 * MINUTE, isAdmin),
+    },
     generateCode,
     adminEmails,
   };
@@ -83,7 +93,8 @@ export function createApp({
       POST: async (request: BunRequest) => {
         const email = Validation.email(field(await readJson(request), 'email'));
         if (!email) return errorResponse(400, 'invalid_input');
-        return AuthUseCase.requestCode(auth, email) === 'sent' ? noContent() : errorResponse(429, 'too_many_requests');
+        const sent = AuthUseCase.requestCode(auth, email, clientIp(request)) === 'sent';
+        return sent ? noContent() : errorResponse(429, 'too_many_requests');
       },
     },
     '/api/auth/verify': {
@@ -91,11 +102,12 @@ export function createApp({
         const body = await readJson(request);
         const email = Validation.email(field(body, 'email'));
         const code = field(body, 'code');
-        const sessionToken = email && typeof code === 'string' ? AuthUseCase.verify(auth, email, code) : null;
-        if (!sessionToken) return errorResponse(401, 'invalid_code');
+        if (!email || typeof code !== 'string') return errorResponse(401, 'invalid_code');
+        const result = AuthUseCase.verify(auth, email, clientIp(request), code);
+        if (!result.ok) return resultResponse(result);
         return new Response(null, {
           status: 204,
-          headers: { 'set-cookie': sessionCookie(sessionToken, SESSION_TTL_MS) },
+          headers: { 'set-cookie': sessionCookie(result.value, SESSION_TTL_MS) },
         });
       },
     },

@@ -23,6 +23,7 @@
         "APP_URL",
         "ADMIN_EMAILS",
         "MAIL_TEST_MODE",
+        "TRUST_PROXY",
         "SMTP_HOST",
         "SMTP_PORT",
         "SMTP_USER",

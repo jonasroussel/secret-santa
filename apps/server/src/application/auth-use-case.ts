@@ -2,15 +2,25 @@ import type { AuthRepository } from '../infrastructure/database/auth-repository.
 import { LoginCodeMail } from './login-code-mail.ts';
 import type { Clock, Mailer } from './ports.ts';
 import type { RateLimiter } from './rate-limiter.ts';
+import { fail, ok, type Result } from './result.ts';
 import { Tokens } from './tokens.ts';
 
 export type AuthDeps = {
   repository: AuthRepository;
   clock: Clock;
   mailer: Mailer;
-  limiter: RateLimiter;
+  limits: AuthLimits;
   generateCode: () => string;
   adminEmails: ReadonlySet<string>;
+};
+
+/** Checked per client address first, then per email: one address over its limit does not lock out an admin. */
+export type AuthLimits = {
+  requestsPerIp: RateLimiter;
+  requestsPerEmail: RateLimiter;
+  /** Failed sign-ins: each new code resets its own 5 tries, these cap guessing across codes. */
+  failuresPerIp: RateLimiter;
+  failuresPerEmail: RateLimiter;
 };
 
 const CODE_TTL_MS = 15 * 60 * 1000;
@@ -22,8 +32,8 @@ export class AuthUseCase {
    * Emails a sign-in code to admins only, but answers the same way for everyone so nobody learns who is an admin. The
    * mail is not awaited for the same reason (an SMTP round trip would show in the response time).
    */
-  static requestCode(deps: AuthDeps, email: string): 'sent' | 'too_many_requests' {
-    if (!deps.limiter.allow(email)) return 'too_many_requests';
+  static requestCode(deps: AuthDeps, email: string, ip: string): 'sent' | 'too_many_requests' {
+    if (!deps.limits.requestsPerIp.hit(ip) || !deps.limits.requestsPerEmail.hit(email)) return 'too_many_requests';
     if (!deps.adminEmails.has(email)) return 'sent';
 
     const code = deps.generateCode();
@@ -35,28 +45,29 @@ export class AuthUseCase {
   }
 
   /**
-   * Consumes the code and returns a new session token, or `null` when the code is wrong, expired or used. After
-   * too many wrong tries the code is deleted, so it cannot be guessed.
+   * Consumes the code and returns a new session token. After too many wrong tries the code is deleted, so it cannot
+   * be guessed; past the daily caps of failures, sign-in waits for the window to end. Failures count for any email,
+   * so an admin and a stranger get the same answers.
    */
-  static verify(deps: AuthDeps, email: string, code: string): string | null {
+  static verify(deps: AuthDeps, email: string, ip: string, code: string): Result<string> {
+    const { failuresPerIp, failuresPerEmail } = deps.limits;
+    if (failuresPerIp.blocked(ip) || failuresPerEmail.blocked(email)) return fail('too_many_requests');
     const now = deps.clock.now();
     const saved = deps.repository.findCode(email);
-    if (!saved) return null;
-    if (saved.expiresAt <= now) {
-      deps.repository.deleteCode(email);
-      return null;
-    }
-    if (saved.codeHash !== Tokens.hash(code)) {
-      if (saved.failedAttempts + 1 >= MAX_FAILED_ATTEMPTS) deps.repository.deleteCode(email);
-      else deps.repository.countFailedAttempt(email);
-      return null;
+    if (!saved || saved.expiresAt <= now || saved.codeHash !== Tokens.hash(code)) {
+      failuresPerIp.hit(ip);
+      failuresPerEmail.hit(email);
+      if (saved && (saved.expiresAt <= now || saved.failedAttempts + 1 >= MAX_FAILED_ATTEMPTS)) {
+        deps.repository.deleteCode(email);
+      } else if (saved) deps.repository.countFailedAttempt(email);
+      return fail('invalid_code');
     }
 
     deps.repository.deleteCode(email);
-    if (!deps.adminEmails.has(email)) return null;
+    if (!deps.adminEmails.has(email)) return fail('invalid_code');
     const sessionToken = Tokens.random();
     deps.repository.addSession(Tokens.hash(sessionToken), email, now + SESSION_TTL_MS, now);
-    return sessionToken;
+    return ok(sessionToken);
   }
 
   /** The admin behind the session; an email removed from the admins loses its sessions. */

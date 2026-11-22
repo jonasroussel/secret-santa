@@ -6,6 +6,7 @@ import { config } from './infrastructure/config.ts';
 import { createDatabase, migrate } from './infrastructure/database/connection.ts';
 import { consoleMailer } from './infrastructure/mail/console-mailer.ts';
 import { createSmtpMailer } from './infrastructure/mail/smtp-mailer.ts';
+import { resolveClientIp } from './presentation/http/client-ip.ts';
 import { createStaticFiles } from './presentation/http/static-files.ts';
 
 const database = createDatabase(config.databasePath);
@@ -32,6 +33,7 @@ const server = Bun.serve({
     secureCookie: config.production,
     mailTestMode: config.mailTestMode,
     adminEmails: config.adminEmails,
+    clientIp: (request): string => resolveClientIp(request, server.requestIP(request)?.address, config.trustProxy),
   }),
   // Unknown API paths stay JSON errors; everything else is the client, when it is served from here.
   fetch: (request) =>

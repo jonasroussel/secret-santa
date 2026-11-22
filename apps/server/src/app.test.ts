@@ -23,6 +23,8 @@ function startApp({ mailTestMode = false, database = newDatabase() } = {}) {
   const clock = { time: Date.UTC(2026, 10, 22), now: () => clock.time };
   const mails: Mail[] = [];
   const failingEmails = new Set<string>();
+  /** The address every request comes from; tests switch it to act as another client. */
+  const client = { ip: '203.0.113.1' };
   let held = Promise.resolve();
   let reached: (() => void) | null = null;
   let codes = 0;
@@ -45,6 +47,7 @@ function startApp({ mailTestMode = false, database = newDatabase() } = {}) {
       secureCookie: false,
       adminEmails: new Set([ADMIN, 'maman@example.com']),
       mailTestMode,
+      clientIp: () => client.ip,
     }),
   });
   stops.push(() => server.stop(true));
@@ -92,7 +95,7 @@ function startApp({ mailTestMode = false, database = newDatabase() } = {}) {
     return { as, add, event, sendMails };
   };
 
-  return { call, clock, mails, failingEmails, holdMails, requestCode, verify, organizer };
+  return { call, clock, client, mails, failingEmails, holdMails, requestCode, verify, organizer };
 }
 
 const giverIn = (mail: Mail) => mail.text.match(/^Bonjour (.+),$/m)?.[1];
@@ -133,6 +136,25 @@ test('after 5 wrong codes even the right one is refused', async () => {
   for (let attempt = 0; attempt < 5; attempt++) expect((await verify('999999')).status).toBe(401);
 
   expect((await verify(code)).status).toBe(401);
+});
+
+test('after 20 wrong codes in a day an address is refused, while the admin can still sign in from elsewhere', async () => {
+  const { clock, client, requestCode, verify } = startApp();
+  for (let round = 0; round < 4; round++) {
+    await requestCode();
+    for (let attempt = 0; attempt < 5; attempt++) await verify('999999');
+    clock.time += 15 * 60 * 1000;
+  }
+
+  const refused = await verify(await requestCode());
+  expect([refused.status, await refused.json()]).toEqual([429, { error: 'too_many_requests' }]);
+
+  client.ip = '198.51.100.7';
+  expect((await verify(await requestCode())).status).toBe(204);
+
+  client.ip = '203.0.113.1';
+  clock.time += 24 * 60 * 60 * 1000;
+  expect((await verify(await requestCode())).status).toBe(204);
 });
 
 test('an unknown email gets the same answer but no mail', async () => {
@@ -433,6 +455,43 @@ test('a draw sent in test mode must be redone before real mails go out', async (
   expect((await event()).drawTested).toBe(false);
 });
 
+test('a 6th code request from one address within 15 minutes is refused, not from another one', async () => {
+  const { call, client } = startApp();
+  const request = () => call('POST', '/api/auth/request-code', { email: ADMIN });
+  for (let attempt = 0; attempt < 5; attempt++) expect((await request()).status).toBe(204);
+
+  expect((await request()).status).toBe(429);
+  client.ip = '198.51.100.7';
+  expect((await request()).status).toBe(204);
+});
+
+test('more than 20 code requests an hour for one email are refused, whatever the address', async () => {
+  const { call, client } = startApp();
+  const requestFrom = (ip: string) => {
+    client.ip = ip;
+    return call('POST', '/api/auth/request-code', { email: ADMIN });
+  };
+  for (let index = 0; index < 20; index++) expect((await requestFrom(`10.0.0.${index}`)).status).toBe(204);
+
+  expect((await requestFrom('10.0.1.1')).status).toBe(429);
+});
+
+test('after 100 wrong codes in a day for one email, sign-in waits for the next day, whatever the address', async () => {
+  const { clock, client, requestCode, verify } = startApp();
+  for (let round = 0; round < 20; round++) {
+    client.ip = `10.0.0.${round}`;
+    await requestCode();
+    for (let attempt = 0; attempt < 5; attempt++) await verify('999999');
+  }
+  clock.time += 60 * 60 * 1000;
+
+  client.ip = '198.51.100.7';
+  expect((await verify(await requestCode())).status).toBe(429);
+
+  clock.time += 24 * 60 * 60 * 1000;
+  expect((await verify(await requestCode())).status).toBe(204);
+});
+
 test('a draw stays tested once a test mail went out, whatever the later sends', async () => {
   const database = newDatabase();
   const testing = startApp({ mailTestMode: true, database });
@@ -452,6 +511,15 @@ test('a draw stays tested once a test mail went out, whatever the later sends', 
   testing.failingEmails.clear();
   await trial.as('POST', `/api/event/participants/${paul.id}/mail`);
   expect((await live.event()).drawTested).toBe(true);
+});
+
+test('after logging out the session no longer works', async () => {
+  const { call, requestCode, verify } = startApp();
+  const cookie = (await verify(await requestCode())).headers.get('set-cookie')!.split(';')[0]!;
+
+  expect((await call('POST', '/api/auth/logout', undefined, cookie)).status).toBe(204);
+
+  expect((await call('GET', '/api/session', undefined, cookie)).status).toBe(401);
 });
 
 test('an email corrected after the draw gets the resent mail', async () => {
