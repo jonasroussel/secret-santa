@@ -1,4 +1,4 @@
-import type { ParticipantInput } from '@secret-santa/shared';
+import type { Participant, ParticipantInput } from '@secret-santa/shared';
 import { type FormEvent, useId, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -8,14 +8,21 @@ import { Input } from '@/components/ui/input';
 type Props = {
   initial?: ParticipantInput;
   submitLabel: string;
+  /** A new list clears the error, which may no longer hold. */
+  participants?: Participant[];
   /** Resolves to an error message, or null on success. */
   onSubmit: (input: ParticipantInput) => Promise<string | null>;
 };
 
-export function ParticipantForm({ initial, submitLabel, onSubmit }: Props) {
+export function ParticipantForm({ initial, submitLabel, participants, onSubmit }: Props) {
   const id = useId();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorParticipants, setErrorParticipants] = useState(participants);
+  if (errorParticipants !== participants) {
+    setErrorParticipants(participants);
+    setError(null);
+  }
 
   async function submit(formEvent: FormEvent<HTMLFormElement>) {
     formEvent.preventDefault();
