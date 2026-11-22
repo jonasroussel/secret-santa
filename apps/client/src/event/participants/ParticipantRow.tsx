@@ -17,11 +17,16 @@ import { FieldError } from '@/components/ui/field';
 import { api } from '@/lib/api.ts';
 import { errorMessage } from '@/lib/errors.ts';
 
-import type { EventSectionProps } from '../types.ts';
+import type { EventSectionProps, MailSending } from '../types.ts';
 import { MailStatus } from './MailStatus.tsx';
 import { ParticipantForm } from './ParticipantForm.tsx';
 
-export function ParticipantRow({ participant, event, setEvent }: EventSectionProps & { participant: Participant }) {
+export function ParticipantRow({
+  participant,
+  event,
+  setEvent,
+  mailSending,
+}: EventSectionProps & { participant: Participant; mailSending: MailSending }) {
   const drawn = event.drawnAt !== null;
 
   return (
@@ -34,7 +39,7 @@ export function ParticipantRow({ participant, event, setEvent }: EventSectionPro
         <EditDialog participant={participant} emailOnly={drawn} setEvent={setEvent} />
         {!drawn && <RemoveDialog participant={participant} event={event} setEvent={setEvent} />}
       </div>
-      {drawn && <MailStatus participant={participant} setEvent={setEvent} />}
+      {drawn && <MailStatus participant={participant} setEvent={setEvent} mailSending={mailSending} />}
     </li>
   );
 }

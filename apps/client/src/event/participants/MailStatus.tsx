@@ -1,5 +1,5 @@
 import type { Participant } from '@secret-santa/shared';
-import { CheckIcon, CircleIcon, MailIcon, TriangleAlertIcon } from 'lucide-react';
+import { CheckIcon, CircleIcon, LoaderCircleIcon, MailIcon, TriangleAlertIcon } from 'lucide-react';
 import { useState } from 'react';
 
 import { Badge } from '@/components/ui/badge';
@@ -8,12 +8,13 @@ import { api } from '@/lib/api.ts';
 import { errorMessage } from '@/lib/errors.ts';
 
 import { formatMoment } from '../format.ts';
-import type { EventSectionProps } from '../types.ts';
+import type { EventSectionProps, MailSending } from '../types.ts';
 
 export function MailStatus({
   participant,
   setEvent,
-}: Pick<EventSectionProps, 'setEvent'> & { participant: Participant }) {
+  mailSending,
+}: Pick<EventSectionProps, 'setEvent'> & { participant: Participant; mailSending: MailSending }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,9 +36,16 @@ export function MailStatus({
   return (
     <div className='flex flex-col gap-1 pr-3.5 pb-2'>
       <div className='flex flex-wrap items-center justify-between gap-x-3'>
-        <StatusBadge participant={participant} />
+        {mailSending?.participantId === participant.id ? (
+          <Badge>
+            <LoaderCircleIcon className='animate-spin' />
+            Envoi en cours…
+          </Badge>
+        ) : (
+          <StatusBadge participant={participant} />
+        )}
         {participant.mailStatus !== 'not_sent' && (
-          <Button variant='link' size='sm' onClick={() => void resend()} disabled={pending}>
+          <Button variant='link' size='sm' onClick={() => void resend()} disabled={pending || mailSending !== null}>
             {pending ? 'Envoi…' : 'Renvoyer le mail'}
           </Button>
         )}

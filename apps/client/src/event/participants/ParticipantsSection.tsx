@@ -3,11 +3,15 @@ import type { Participant, ParticipantInput } from '@secret-santa/shared';
 import { api } from '@/lib/api.ts';
 import { errorMessage } from '@/lib/errors.ts';
 
-import type { EventSectionProps } from '../types.ts';
+import type { EventSectionProps, MailSending } from '../types.ts';
 import { ParticipantForm } from './ParticipantForm.tsx';
 import { ParticipantRow } from './ParticipantRow.tsx';
 
-export function ParticipantsSection({ event, setEvent }: EventSectionProps) {
+export function ParticipantsSection({
+  event,
+  setEvent,
+  mailSending = null,
+}: EventSectionProps & { mailSending?: MailSending }) {
   async function add(input: ParticipantInput) {
     const result = await api<Participant>('/api/event/participants', { method: 'POST', body: input });
     if (!result.ok) return errorMessage(result.error);
@@ -26,7 +30,13 @@ export function ParticipantsSection({ event, setEvent }: EventSectionProps) {
       {event.participants.length > 0 && (
         <ul className='flex flex-col gap-2'>
           {event.participants.map((participant) => (
-            <ParticipantRow key={participant.id} participant={participant} event={event} setEvent={setEvent} />
+            <ParticipantRow
+              key={participant.id}
+              participant={participant}
+              event={event}
+              setEvent={setEvent}
+              mailSending={mailSending}
+            />
           ))}
         </ul>
       )}

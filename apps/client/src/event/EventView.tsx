@@ -10,13 +10,18 @@ import { DrawnPanel } from './draw/DrawnPanel.tsx';
 import { EventSummary } from './EventSummary.tsx';
 import { ExclusionsSection } from './exclusions/ExclusionsSection.tsx';
 import { ParticipantsSection } from './participants/ParticipantsSection.tsx';
+import type { MailSending } from './types.ts';
 
 export function EventView({ initial }: { initial: SecretSantaEvent }) {
   const [event, setEvent] = useState(initial);
   // Lives here, not in DrawButton, so it can fade out over the drawn page that replaces the button.
   const [drawAnimation, setDrawAnimation] = useState<DrawAnimationState>(null);
+  const [mailSending, setMailSending] = useState<MailSending>(null);
+  const isSending = mailSending !== null;
 
   useEffect(() => {
+    // A refresh during the sending loop would overwrite the rows it is updating.
+    if (isSending) return;
     async function refresh() {
       if (document.visibilityState !== 'visible') return;
       const result = await api<SecretSantaEvent>('/api/event');
@@ -29,7 +34,7 @@ export function EventView({ initial }: { initial: SecretSantaEvent }) {
       window.removeEventListener('focus', onRefresh);
       document.removeEventListener('visibilitychange', onRefresh);
     };
-  }, []);
+  }, [isSending]);
 
   const sectionProps = { event, setEvent };
   return (
@@ -44,10 +49,10 @@ export function EventView({ initial }: { initial: SecretSantaEvent }) {
       ) : (
         <>
           <EventSummary {...sectionProps} />
-          <DrawnPanel {...sectionProps} />
-          <ParticipantsSection {...sectionProps} />
+          <DrawnPanel {...sectionProps} mailSending={mailSending} setMailSending={setMailSending} />
+          <ParticipantsSection {...sectionProps} mailSending={mailSending} />
           <ExclusionsSection {...sectionProps} />
-          <CancelDrawDialog {...sectionProps} />
+          <CancelDrawDialog {...sectionProps} disabled={isSending} />
         </>
       )}
       {drawAnimation && (

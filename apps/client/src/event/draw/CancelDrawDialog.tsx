@@ -18,7 +18,7 @@ import { errorMessage } from '@/lib/errors.ts';
 
 import type { EventSectionProps } from '../types.ts';
 
-export function CancelDrawDialog({ event, setEvent }: EventSectionProps) {
+export function CancelDrawDialog({ event, setEvent, disabled }: EventSectionProps & { disabled: boolean }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mailsSent = event.participants.some((participant) => participant.mailStatus !== 'not_sent');
@@ -35,7 +35,7 @@ export function CancelDrawDialog({ event, setEvent }: EventSectionProps) {
   return (
     <Dialog onOpenChange={() => setError(null)}>
       <DialogTrigger asChild>
-        <Button variant='link' size='sm' className='text-muted-foreground self-center'>
+        <Button variant='link' size='sm' className='text-muted-foreground self-center' disabled={disabled}>
           Annuler le tirage
         </Button>
       </DialogTrigger>
