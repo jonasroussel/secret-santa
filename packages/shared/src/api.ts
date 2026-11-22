@@ -19,7 +19,11 @@ export type HealthResponse = {
   version: string;
 };
 
-export type Session = { email: string };
+export type Session = {
+  email: string;
+  /** Participant mails go to the admins instead (a real test of the whole flow). */
+  mailTestMode: boolean;
+};
 
 export type MailStatus = 'not_sent' | 'sent' | 'failed' | 'opened';
 

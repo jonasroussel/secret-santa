@@ -22,6 +22,7 @@
         "API_URL",
         "APP_URL",
         "ADMIN_EMAILS",
+        "MAIL_TEST_MODE",
         "SMTP_HOST",
         "SMTP_PORT",
         "SMTP_USER",

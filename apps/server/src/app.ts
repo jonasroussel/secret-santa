@@ -24,6 +24,8 @@ export type AppDeps = {
   /** Production only: the dev server runs on plain http. */
   secureCookie: boolean;
   adminEmails: ReadonlySet<string>;
+  /** Participant mails go to the admins instead of the participants. */
+  mailTestMode: boolean;
 };
 
 const SESSION_COOKIE = 'session';
@@ -38,6 +40,7 @@ export function createApp({
   generateCode,
   secureCookie,
   adminEmails,
+  mailTestMode,
 }: AppDeps) {
   const auth: AuthDeps = {
     repository: new AuthRepository(database),
@@ -48,7 +51,13 @@ export function createApp({
     adminEmails,
   };
   const events = new EventRepository(database);
-  const draws: DrawDeps = { repository: events, mailer, clock, appUrl };
+  const draws: DrawDeps = {
+    repository: events,
+    mailer,
+    clock,
+    appUrl,
+    testRecipients: mailTestMode ? [...adminEmails] : null,
+  };
   const sessionCookie = (value: string, maxAgeMs: number) =>
     new Bun.Cookie(SESSION_COOKIE, value, {
       httpOnly: true,
@@ -62,7 +71,7 @@ export function createApp({
     <R extends BunRequest>(handler: (request: R, session: Session) => Response | Promise<Response>) =>
     (request: R) => {
       const email = AuthUseCase.sessionEmail(auth, request.cookies.get(SESSION_COOKIE));
-      return email ? handler(request, { email }) : errorResponse(401, 'unauthorized');
+      return email ? handler(request, { email, mailTestMode }) : errorResponse(401, 'unauthorized');
     };
 
   return {

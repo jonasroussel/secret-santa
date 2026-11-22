@@ -12,7 +12,7 @@ let stopServer = () => {};
 
 afterEach(() => stopServer());
 
-function startApp() {
+function startApp({ mailTestMode = false } = {}) {
   const database = createDatabase(':memory:');
   migrate(database);
   const clock = { time: Date.UTC(2026, 10, 22), now: () => clock.time };
@@ -34,7 +34,8 @@ function startApp() {
       appUrl: 'https://secret-santa.test',
       generateCode: () => String(++codes).padStart(6, '0'),
       secureCookie: false,
-      adminEmails: new Set([ADMIN]),
+      adminEmails: new Set([ADMIN, 'maman@example.com']),
+      mailTestMode,
     }),
   });
   stopServer = () => server.stop(true);
@@ -93,7 +94,7 @@ test('an admin signs in with the emailed code', async () => {
   expect(cookie).toContain('HttpOnly');
 
   const session = await call('GET', '/api/session', undefined, cookie.split(';')[0]);
-  expect(await session.json()).toEqual({ email: ADMIN });
+  expect(await session.json()).toEqual({ email: ADMIN, mailTestMode: false });
 });
 
 test('a code works only once and only for 15 minutes', async () => {
@@ -304,4 +305,22 @@ test('a mail the server could not send is marked failed until it is sent again',
     'sent',
     'not_sent',
   ]);
+});
+
+test('in mail test mode the participant mails go to the admins, marked as a test', async () => {
+  const { organizer, mails } = startApp({ mailTestMode: true });
+  const { as, add } = await organizer();
+  const [anne] = [await add('Anne'), await add('Paul'), await add('Marie')];
+  await as('POST', '/api/event/draw');
+
+  const sent = (await (await as('POST', `/api/event/participants/${anne.id}/mail`)).json()) as Participant;
+
+  expect(sent.mailStatus).toBe('sent');
+  expect(mails.map((mail) => [mail.to, mail.subject])).toEqual([
+    ['papa@example.com, maman@example.com', '[TEST] 🎁 Secret Santa — Noël 2026'],
+  ]);
+  const notice = 'Mode test\u00a0: ce mail était destiné à Anne (anne@example.com).';
+  expect(mails[0]!.text.startsWith(notice)).toBe(true);
+  expect(mails[0]!.html).toContain(notice);
+  expect(await (await as('GET', '/api/session')).json()).toEqual({ email: ADMIN, mailTestMode: true });
 });

@@ -7,7 +7,14 @@ import type { Clock, Mailer } from './ports.ts';
 import { fail, ok, type Result } from './result.ts';
 import { Tokens } from './tokens.ts';
 
-export type DrawDeps = { repository: EventRepository; mailer: Mailer; clock: Clock; appUrl: string };
+export type DrawDeps = {
+  repository: EventRepository;
+  mailer: Mailer;
+  clock: Clock;
+  appUrl: string;
+  /** Mail test mode: the admins receive the participant mails. */
+  testRecipients: string[] | null;
+};
 
 const MIN_PARTICIPANTS = 3;
 
@@ -50,10 +57,12 @@ export class DrawUseCase {
   }
 
   /** A new pixel token for every send, so only the latest mail counts as opened. */
-  static async #send({ repository, mailer, clock, appUrl }: DrawDeps, event: SecretSantaEvent, mail: MailToSend) {
+  static async #send(deps: DrawDeps, event: SecretSantaEvent, mail: MailToSend) {
+    const { repository, mailer, clock, appUrl, testRecipients } = deps;
     const token = Tokens.random();
     try {
-      await mailer.send(ParticipantMail.build({ ...mail, event, pixelUrl: `${appUrl}/api/mail/open/${token}` }));
+      const pixelUrl = `${appUrl}/api/mail/open/${token}`;
+      await mailer.send(ParticipantMail.build({ ...mail, event, pixelUrl, testRecipients }));
       repository.recordMailSent(mail.giverId, Tokens.hash(token), clock.now());
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

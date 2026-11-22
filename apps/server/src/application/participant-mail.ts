@@ -9,6 +9,8 @@ export type ParticipantMailInput = {
   receiverName: string;
   receivedCancelledDraw: boolean;
   pixelUrl: string;
+  /** Mail test mode: the admins receive the mail instead of the participant. */
+  testRecipients: string[] | null;
 };
 
 const COLORS = {
@@ -36,13 +38,16 @@ export class ParticipantMail {
     receiverName,
     receivedCancelledDraw,
     pixelUrl,
+    testRecipients,
   }: ParticipantMailInput): Mail {
     const date = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'full', timeZone: 'UTC' }).format(new Date(event.date));
     const details: [string, string][] = [['Date', date]];
     if (event.budget !== null) details.push(['Budget', `${event.budget}${NBSP}€`]);
     const intro = `Le tirage au sort de «${NBSP}${event.name}${NBSP}» a eu lieu. Tu offres un cadeau${NBSP}à${NBSP}:`;
+    const testNotice = testRecipients && `Mode test${NBSP}: ce mail était destiné à ${giverName} (${giverEmail}).`;
 
     const text = [
+      ...(testNotice ? [testNotice, ''] : []),
       ...(receivedCancelledDraw ? [REDRAW_NOTICE, ''] : []),
       `Bonjour ${giverName},`,
       '',
@@ -60,10 +65,19 @@ export class ParticipantMail {
     ].join('\n');
 
     return {
-      to: giverEmail,
-      subject: `🎁 Secret Santa — ${event.name}`,
+      to: testRecipients?.join(', ') ?? giverEmail,
+      subject: `${testNotice ? '[TEST] ' : ''}🎁 Secret Santa — ${event.name}`,
       text,
-      html: ParticipantMail.#html({ event, giverName, receiverName, receivedCancelledDraw, pixelUrl, details, intro }),
+      html: ParticipantMail.#html({
+        event,
+        giverName,
+        receiverName,
+        receivedCancelledDraw,
+        testNotice,
+        pixelUrl,
+        details,
+        intro,
+      }),
     };
   }
 
@@ -72,16 +86,21 @@ export class ParticipantMail {
     giverName: string;
     receiverName: string;
     receivedCancelledDraw: boolean;
+    testNotice: string | null;
     pixelUrl: string;
     details: [string, string][];
     intro: string;
   }): string {
     const e = ParticipantMail.#escape;
-    const notice = input.receivedCancelledDraw
-      ? `<tr><td style="padding:0 32px 8px">
-          <div style="background:#FBF1DC;border-left:4px solid ${COLORS.gold};border-radius:4px;padding:12px 16px;font:600 15px/1.5 ${SANS};color:${COLORS.ink}">${e(REDRAW_NOTICE)}</div>
-        </td></tr>`
-      : '';
+    const notice = (text: string, color: string) => `<tr><td style="padding:0 32px 8px">
+          <div style="background:#FBF1DC;border-left:4px solid ${color};border-radius:4px;padding:12px 16px;font:600 15px/1.5 ${SANS};color:${COLORS.ink}">${e(text)}</div>
+        </td></tr>`;
+    const notices = [
+      input.testNotice && notice(input.testNotice, COLORS.red),
+      input.receivedCancelledDraw && notice(REDRAW_NOTICE, COLORS.gold),
+    ]
+      .filter(Boolean)
+      .join('');
     const details = input.details
       .map(
         ([label, value]) => `<tr>
@@ -113,7 +132,7 @@ export class ParticipantMail {
     <tr><td style="padding:28px 32px 8px">
       <p style="margin:0;font:italic 20px/1.3 ${SERIF};color:${COLORS.fir}">🎁 Secret Santa</p>
     </td></tr>
-    ${notice}
+    ${notices}
     <tr><td style="padding:16px 32px 0">
       <h1 style="margin:0 0 12px;font:normal 26px/1.3 ${SERIF};color:${COLORS.ink}">Bonjour ${e(input.giverName)},</h1>
       <p style="margin:0;font:17px/1.6 ${SANS};color:${COLORS.ink}">${e(input.intro)}</p>

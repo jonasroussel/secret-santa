@@ -12,6 +12,7 @@ const database = createDatabase(config.databasePath);
 const appliedMigrations = migrate(database);
 if (appliedMigrations > 0) console.log(`Applied migrations: ${appliedMigrations}`);
 if (config.adminEmails.size === 0) console.warn('ADMIN_EMAILS is empty: nobody can sign in.');
+if (config.mailTestMode) console.warn('MAIL_TEST_MODE is on: participant mails go to the admins.');
 
 const version = await appVersion();
 const notFound = () => Response.json({ error: 'not_found' }, { status: 404 });
@@ -27,6 +28,7 @@ const server = Bun.serve({
     appUrl: config.appUrl,
     generateCode: config.production ? Tokens.code : () => '123456',
     secureCookie: config.production,
+    mailTestMode: config.mailTestMode,
     adminEmails: config.adminEmails,
   }),
   // Unknown API paths stay JSON errors; everything else is the client, when it is served from here.

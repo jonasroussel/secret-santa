@@ -17,6 +17,8 @@ export const config = {
       .map((email) => email.trim().toLowerCase())
       .filter(Boolean),
   ),
+  /** For a real test in production: participant mails go to the admins. */
+  mailTestMode: ['1', 'true'].includes(Bun.env.MAIL_TEST_MODE ?? ''),
   /** Without SMTP (development only: the mails hold who gives to whom), mails are printed in the log. */
   smtp:
     production || Bun.env.SMTP_HOST
