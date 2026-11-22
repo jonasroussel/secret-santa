@@ -24,6 +24,7 @@ const server = Bun.serve({
     database,
     clock: systemClock,
     mailer: config.smtp ? createSmtpMailer(config.smtp) : consoleMailer,
+    appUrl: config.appUrl,
     generateCode: config.production ? Tokens.code : () => '123456',
     secureCookie: config.production,
     adminEmails: config.adminEmails,

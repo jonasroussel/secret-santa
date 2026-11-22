@@ -47,4 +47,20 @@ export const migrations: string[] = [
     failed_attempts INTEGER NOT NULL DEFAULT 0
   );
   `,
+  // The draw: who gives to whom (never shown to the organizer) and the mail sent to each giver. Cancelling the draw
+  // deletes the assignments; `received_cancelled_draw` remembers who got a mail of a cancelled draw.
+  `
+  ALTER TABLE event ADD COLUMN message TEXT;
+  ALTER TABLE event ADD COLUMN drawn_at INTEGER;
+  ALTER TABLE participants ADD COLUMN received_cancelled_draw INTEGER NOT NULL DEFAULT 0;
+  CREATE TABLE assignments (
+    giver_id INTEGER PRIMARY KEY REFERENCES participants (id) ON DELETE CASCADE,
+    receiver_id INTEGER NOT NULL UNIQUE REFERENCES participants (id) ON DELETE CASCADE,
+    mail_status TEXT NOT NULL DEFAULT 'not_sent' CHECK (mail_status IN ('not_sent', 'sent', 'failed', 'opened')),
+    mail_token_hash TEXT UNIQUE,
+    mail_sent_at INTEGER,
+    mail_opened_at INTEGER,
+    mail_error TEXT
+  );
+  `,
 ];

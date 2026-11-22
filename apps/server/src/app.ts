@@ -4,6 +4,7 @@ import type { HealthResponse, SecretSantaEvent, Session } from '@secret-santa/sh
 import type { BunRequest } from 'bun';
 
 import { type AuthDeps, AuthUseCase, SESSION_TTL_MS } from './application/auth-use-case.ts';
+import { type DrawDeps, DrawUseCase } from './application/draw-use-case.ts';
 import { EventUseCase } from './application/event-use-case.ts';
 import type { Clock, Mailer } from './application/ports.ts';
 import { RateLimiter } from './application/rate-limiter.ts';
@@ -17,6 +18,8 @@ export type AppDeps = {
   database: Database;
   clock: Clock;
   mailer: Mailer;
+  /** Public address of the app, for the absolute URLs in mails. */
+  appUrl: string;
   generateCode: () => string;
   /** Production only: the dev server runs on plain http. */
   secureCookie: boolean;
@@ -24,8 +27,18 @@ export type AppDeps = {
 };
 
 const SESSION_COOKIE = 'session';
+const PIXEL = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
 
-export function createApp({ version, database, clock, mailer, generateCode, secureCookie, adminEmails }: AppDeps) {
+export function createApp({
+  version,
+  database,
+  clock,
+  mailer,
+  appUrl,
+  generateCode,
+  secureCookie,
+  adminEmails,
+}: AppDeps) {
   const auth: AuthDeps = {
     repository: new AuthRepository(database),
     clock,
@@ -35,6 +48,7 @@ export function createApp({ version, database, clock, mailer, generateCode, secu
     adminEmails,
   };
   const events = new EventRepository(database);
+  const draws: DrawDeps = { repository: events, mailer, clock, appUrl };
   const sessionCookie = (value: string, maxAgeMs: number) =>
     new Bun.Cookie(SESSION_COOKIE, value, {
       httpOnly: true,
@@ -111,8 +125,14 @@ export function createApp({ version, database, clock, mailer, generateCode, secu
       }),
       DELETE: withSession((request: BunRequest<'/api/event/participants/:id'>) => {
         const id = idParam(request.params.id);
-        if (id !== null) EventUseCase.removeParticipant(events, id);
-        return noContent();
+        return id === null ? noContent() : resultResponse(EventUseCase.removeParticipant(events, id));
+      }),
+    },
+    '/api/event/participants/:id/mail': {
+      POST: withSession(async (request: BunRequest<'/api/event/participants/:id/mail'>) => {
+        const id = idParam(request.params.id);
+        if (id === null) return errorResponse(404, 'not_found');
+        return resultResponse(await DrawUseCase.sendOne(draws, id));
       }),
     },
     '/api/event/exclusions': {
@@ -125,9 +145,22 @@ export function createApp({ version, database, clock, mailer, generateCode, secu
     '/api/event/exclusions/:id': {
       DELETE: withSession((request: BunRequest<'/api/event/exclusions/:id'>) => {
         const id = idParam(request.params.id);
-        if (id !== null) EventUseCase.removeExclusion(events, id);
-        return noContent();
+        return id === null ? noContent() : resultResponse(EventUseCase.removeExclusion(events, id));
       }),
+    },
+    '/api/event/draw': {
+      POST: withSession(() => resultResponse(DrawUseCase.draw(draws))),
+      DELETE: withSession(() => resultResponse(DrawUseCase.cancel(draws))),
+    },
+    '/api/event/mails': {
+      POST: withSession(async () => resultResponse(await DrawUseCase.sendAll(draws))),
+    },
+
+    '/api/mail/open/:token': {
+      GET: (request: BunRequest<'/api/mail/open/:token'>) => {
+        DrawUseCase.recordOpen(draws, request.params.token);
+        return new Response(PIXEL, { headers: { 'content-type': 'image/gif', 'cache-control': 'no-store' } });
+      },
     },
   };
 }

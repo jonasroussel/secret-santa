@@ -4,6 +4,10 @@ const STATUS: Record<ApiError['error'], number> = {
   invalid_input: 400,
   unauthorized: 401,
   invalid_code: 401,
+  not_drawn: 409,
+  draw_locked: 409,
+  draw_impossible: 409,
+  not_enough_participants: 400,
   not_found: 404,
   duplicate_name: 409,
   duplicate_exclusion: 409,
@@ -18,7 +22,8 @@ export function resultResponse<T>(
   result: { ok: true; value: T } | { ok: false; error: ApiError['error'] },
   status = 200,
 ): Response {
-  return result.ok ? Response.json(result.value, { status }) : errorResponse(STATUS[result.error], result.error);
+  if (!result.ok) return errorResponse(STATUS[result.error], result.error);
+  return result.value === undefined ? noContent() : Response.json(result.value, { status });
 }
 
 export const noContent = () => new Response(null, { status: 204 });

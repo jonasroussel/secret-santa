@@ -9,10 +9,11 @@ export class Validation {
   }
 
   static eventDetails(value: unknown): EventDetails | null {
-    const { name, date, budget } = Validation.#record(value);
+    const { name, date, budget, message } = Validation.#record(value);
     const trimmedName = Validation.#text(name, 80);
     if (trimmedName === null || !Validation.#isDate(date) || !Validation.#isBudget(budget)) return null;
-    return { name: trimmedName, date, budget };
+    if (message !== null && (typeof message !== 'string' || message.trim().length > 1000)) return null;
+    return { name: trimmedName, date, budget, message: message?.trim() || null };
   }
 
   static participant(value: unknown): ParticipantInput | null {
