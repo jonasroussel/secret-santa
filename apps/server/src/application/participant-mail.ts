@@ -55,8 +55,8 @@ export class ParticipantMail {
       '',
       `    ${receiverName}`,
       '',
+      ...(event.message ? [`Le mot de l’organisateur${NBSP}:`, event.message, ''] : []),
       ...details.map(([label, value]) => `${label}${NBSP}: ${value}`),
-      ...(event.message ? ['', `Le mot de l’organisateur${NBSP}:`, event.message] : []),
       '',
       SECRET,
       '',
@@ -110,10 +110,14 @@ export class ParticipantMail {
       )
       .join('');
     const message = input.event.message
-      ? `<tr><td style="padding:8px 32px 0">
-          <p style="margin:0 0 6px;font:600 13px/1.4 ${SANS};letter-spacing:.08em;text-transform:uppercase;color:${COLORS.muted}">Le mot de l’organisateur</p>
-          <p style="margin:0;font:italic 17px/1.6 ${SERIF};color:${COLORS.ink}">${e(input.event.message).replaceAll('\n', '<br>')}</p>
-        </td></tr>`
+      ? `<tr><td style="padding:0 32px 20px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLORS.cream};border:1px solid ${COLORS.line};border-left:4px solid ${COLORS.red};border-radius:8px">
+        <tr><td style="padding:18px 20px">
+          <p style="margin:0 0 8px;font:600 12px/1.4 ${SANS};letter-spacing:.08em;text-transform:uppercase;color:${COLORS.muted}">Le mot de l’organisateur</p>
+          <p style="margin:0;font:19px/1.55 ${SERIF};color:${COLORS.ink};word-break:break-word">${e(input.event.message).replaceAll('\n', '<br>')}</p>
+        </td></tr>
+      </table>
+    </td></tr>`
       : '';
 
     return `<!doctype html>
@@ -142,14 +146,12 @@ export class ParticipantMail {
         <tr><td align="center" style="padding:24px 16px;font:bold 34px/1.2 ${SERIF};color:${COLORS.red};word-break:break-word">${e(input.receiverName)}</td></tr>
       </table>
     </td></tr>
+    ${message}
     <tr><td style="padding:0 32px 8px">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${COLORS.line}">${details}</table>
     </td></tr>
-    ${message}
-    <tr><td style="padding:24px 32px 0">
-      <p style="margin:0;padding:14px 16px;background:${COLORS.fir};border-radius:6px;font:600 15px/1.5 ${SANS};color:${COLORS.paper}">🤫 ${e(SECRET)}</p>
-    </td></tr>
     <tr><td style="padding:24px 32px 28px">
+      <p style="margin:0 0 16px;font:13px/1.5 ${SANS};color:${COLORS.muted}">🤫 ${e(SECRET)}</p>
       <p style="margin:0;font:italic 17px/1.5 ${SERIF};color:${COLORS.muted}">Joyeuses fêtes${NBSP}!</p>
     </td></tr>
   </table>
