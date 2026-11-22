@@ -9,11 +9,12 @@ import { Textarea } from '@/components/ui/textarea';
 type Props = {
   initial?: EventDetails;
   submitLabel: string;
+  submitSize?: 'default' | 'lg';
   /** Resolves to an error message, or null on success. */
   onSubmit: (details: EventDetails) => Promise<string | null>;
 };
 
-export function EventForm({ initial, submitLabel, onSubmit }: Props) {
+export function EventForm({ initial, submitLabel, submitSize, onSubmit }: Props) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,7 +73,7 @@ export function EventForm({ initial, submitLabel, onSubmit }: Props) {
           <FieldDescription>Il apparaîtra dans le mail de chaque participant.</FieldDescription>
         </Field>
         <FieldError>{error}</FieldError>
-        <Button type='submit' disabled={pending}>
+        <Button type='submit' size={submitSize} disabled={pending}>
           {submitLabel}
         </Button>
       </FieldGroup>

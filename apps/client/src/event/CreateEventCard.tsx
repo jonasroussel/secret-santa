@@ -23,7 +23,7 @@ export function CreateEventCard({ onCreated }: { onCreated: (event: SecretSantaE
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <EventForm submitLabel='Créer l’événement' onSubmit={create} />
+        <EventForm submitLabel='Créer l’événement' submitSize='lg' onSubmit={create} />
       </CardContent>
     </Card>
   );

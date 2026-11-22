@@ -67,7 +67,7 @@ export function VerifyCodeForm({ email, onChangeEmail }: { email: string; onChan
           <FieldError>{error}</FieldError>
           {resent && <FieldDescription>Un nouveau code vient de t’être envoyé.</FieldDescription>}
         </Field>
-        <Button type='submit' disabled={pending || code.length !== 6}>
+        <Button type='submit' size='lg' disabled={pending || code.length !== 6}>
           Me connecter
         </Button>
       </form>

@@ -41,7 +41,7 @@ export function RequestCodeForm({ initialEmail, onSent }: { initialEmail: string
           />
           <FieldError>{error}</FieldError>
         </Field>
-        <Button type='submit' disabled={pending}>
+        <Button type='submit' size='lg' disabled={pending}>
           Recevoir mon code
         </Button>
       </form>
