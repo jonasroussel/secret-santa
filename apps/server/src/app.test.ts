@@ -86,7 +86,7 @@ test('an admin signs in with the emailed code', async () => {
   const { call, mails, requestCode } = startApp();
 
   const code = await requestCode(' Papa@Example.com ');
-  expect(mails.map((mail) => [mail.to, mail.subject])).toEqual([[ADMIN, `${code} — ton code Secret Santa`]]);
+  expect(mails.map((mail) => [mail.to, mail.subject])).toEqual([[ADMIN, 'Ton code de connexion — Secret Santa']]);
 
   const verify = await call('POST', '/api/auth/verify', { email: 'PAPA@example.com', code });
   expect(verify.status).toBe(204);

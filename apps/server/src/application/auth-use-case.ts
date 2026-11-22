@@ -30,7 +30,7 @@ export class AuthUseCase {
     deps.mailer
       .send({
         to: email,
-        subject: `${code} — ton code Secret Santa`,
+        subject: 'Ton code de connexion — Secret Santa',
         text: [
           'Bonjour,',
           '',
