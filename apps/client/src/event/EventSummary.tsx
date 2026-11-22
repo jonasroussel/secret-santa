@@ -24,10 +24,16 @@ export function EventSummary({ event, setEvent }: EventSectionProps) {
   return (
     <section className='flex flex-col gap-3'>
       <h1 className='text-primary text-[2rem] leading-tight font-semibold'>{event.name}</h1>
-      <dl className='grid grid-cols-[1.5fr_1fr] gap-2.5'>
+      <dl className='grid grid-cols-[auto_1fr] gap-2.5'>
         <Fact label='Date' value={formatDate(event.date)} />
         <Fact label='Budget' value={event.budget === null ? 'Non précisé' : `${event.budget} €`} />
       </dl>
+      {event.message && (
+        <div className='bg-card border-border rounded-[10px] border px-3 py-2.5'>
+          <p className='text-muted-foreground text-xs'>Message pour les participants</p>
+          <p className='whitespace-pre-line'>{event.message}</p>
+        </div>
+      )}
       <Dialog open={editing} onOpenChange={setEditing}>
         <DialogTrigger asChild>
           <Button variant='link' className='self-start'>

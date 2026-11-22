@@ -30,10 +30,12 @@ export function ParticipantsSection({ event, setEvent }: EventSectionProps) {
           ))}
         </ul>
       )}
-      <div className='bg-card border-border flex flex-col gap-4 rounded-lg border p-4'>
-        <h3 className='font-semibold'>Ajouter une personne</h3>
-        <ParticipantForm submitLabel='Ajouter' participants={event.participants} onSubmit={add} />
-      </div>
+      {event.drawnAt === null && (
+        <div className='bg-card border-border flex flex-col gap-4 rounded-lg border p-4'>
+          <h3 className='font-semibold'>Ajouter une personne</h3>
+          <ParticipantForm submitLabel='Ajouter' participants={event.participants} onSubmit={add} />
+        </div>
+      )}
     </section>
   );
 }

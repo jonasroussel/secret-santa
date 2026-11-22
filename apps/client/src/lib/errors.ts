@@ -8,6 +8,10 @@ const messages: Record<ApiErrorCode, string> = {
   too_many_requests: 'Trop de demandes. Réessaie dans quelques minutes.',
   duplicate_name: 'Ce prénom est déjà dans la liste.',
   duplicate_exclusion: 'Ce couple est déjà dans la liste.',
+  draw_locked: 'Le tirage est fait : la liste ne peut plus changer.',
+  not_drawn: 'Le tirage n’a pas encore été fait.',
+  not_enough_participants: 'Il faut au moins 3 participants pour faire le tirage.',
+  draw_impossible: 'Le tirage est impossible avec ces exclusions. Retire un couple et réessaie.',
   network: 'Connexion impossible. Vérifie ta connexion internet et réessaie.',
 };
 

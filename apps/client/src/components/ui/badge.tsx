@@ -11,6 +11,7 @@ const badgeVariants = cva(
         default: 'border-border bg-card text-muted-foreground',
         success: 'bg-success-soft text-success',
         pending: 'bg-pending text-pending-foreground',
+        failed: 'bg-destructive/10 text-destructive',
       },
     },
     defaultVariants: {

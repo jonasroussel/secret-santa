@@ -4,6 +4,7 @@ import { type FormEvent, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 type Props = {
   initial?: EventDetails;
@@ -20,15 +21,17 @@ export function EventForm({ initial, submitLabel, onSubmit }: Props) {
     formEvent.preventDefault();
     const form = new FormData(formEvent.currentTarget);
     const budget = String(form.get('budget')).trim();
+    const message = String(form.get('message')).trim();
     setPending(true);
     setError(null);
-    const message = await onSubmit({
+    const failure = await onSubmit({
       name: String(form.get('name')),
       date: String(form.get('date')),
       budget: budget === '' ? null : Number(budget),
+      message: message === '' ? null : message,
     });
     setPending(false);
-    setError(message);
+    setError(failure);
   }
 
   return (
@@ -62,6 +65,11 @@ export function EventForm({ initial, submitLabel, onSubmit }: Props) {
             defaultValue={initial?.budget ?? ''}
           />
           <FieldDescription>Facultatif.</FieldDescription>
+        </Field>
+        <Field>
+          <FieldLabel htmlFor='event-message'>Message pour les participants (facultatif)</FieldLabel>
+          <Textarea id='event-message' name='message' maxLength={1000} defaultValue={initial?.message ?? ''} />
+          <FieldDescription>Il apparaîtra dans le mail de chaque participant.</FieldDescription>
         </Field>
         <FieldError>{error}</FieldError>
         <Button type='submit' disabled={pending}>

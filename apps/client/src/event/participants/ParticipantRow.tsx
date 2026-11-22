@@ -18,22 +18,32 @@ import { api } from '@/lib/api.ts';
 import { errorMessage } from '@/lib/errors.ts';
 
 import type { EventSectionProps } from '../types.ts';
+import { MailStatus } from './MailStatus.tsx';
 import { ParticipantForm } from './ParticipantForm.tsx';
 
 export function ParticipantRow({ participant, event, setEvent }: EventSectionProps & { participant: Participant }) {
+  const drawn = event.drawnAt !== null;
+
   return (
-    <li className='bg-card border-border flex min-h-14 items-center gap-1 rounded-lg border py-1 pl-3.5'>
-      <div className='min-w-0 flex-1'>
-        <p className='truncate font-semibold'>{participant.name}</p>
-        <p className='text-muted-foreground truncate text-sm'>{participant.email}</p>
+    <li className='bg-card border-border flex flex-col rounded-lg border pl-3.5'>
+      <div className='flex min-h-14 items-center gap-1 py-1'>
+        <div className='min-w-0 flex-1'>
+          <p className='truncate font-semibold'>{participant.name}</p>
+          <p className='text-muted-foreground truncate text-sm'>{participant.email}</p>
+        </div>
+        <EditDialog participant={participant} emailOnly={drawn} setEvent={setEvent} />
+        {!drawn && <RemoveDialog participant={participant} event={event} setEvent={setEvent} />}
       </div>
-      <EditDialog participant={participant} setEvent={setEvent} />
-      <RemoveDialog participant={participant} event={event} setEvent={setEvent} />
+      {drawn && <MailStatus participant={participant} setEvent={setEvent} />}
     </li>
   );
 }
 
-function EditDialog({ participant, setEvent }: Pick<EventSectionProps, 'setEvent'> & { participant: Participant }) {
+function EditDialog({
+  participant,
+  emailOnly,
+  setEvent,
+}: Pick<EventSectionProps, 'setEvent'> & { participant: Participant; emailOnly: boolean }) {
   const [open, setOpen] = useState(false);
 
   async function save(input: ParticipantInput) {
@@ -50,15 +60,25 @@ function EditDialog({ participant, setEvent }: Pick<EventSectionProps, 'setEvent
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant='ghost' size='icon' className='text-secondary' aria-label={`Modifier ${participant.name}`}>
+        <Button
+          variant='ghost'
+          size='icon'
+          className='text-secondary'
+          aria-label={emailOnly ? `Corriger l’email de ${participant.name}` : `Modifier ${participant.name}`}
+        >
           <PencilIcon />
         </Button>
       </DialogTrigger>
-      <DialogContent aria-describedby={undefined}>
+      <DialogContent {...(emailOnly ? {} : { 'aria-describedby': undefined })}>
         <DialogHeader>
-          <DialogTitle>Modifier {participant.name}</DialogTitle>
+          <DialogTitle>{emailOnly ? `Email de ${participant.name}` : `Modifier ${participant.name}`}</DialogTitle>
+          {emailOnly && (
+            <DialogDescription>
+              Le tirage est fait : seul l’email peut être corrigé. Pense ensuite à renvoyer le mail.
+            </DialogDescription>
+          )}
         </DialogHeader>
-        <ParticipantForm initial={participant} submitLabel='Enregistrer' onSubmit={save} />
+        <ParticipantForm initial={participant} emailOnly={emailOnly} submitLabel='Enregistrer' onSubmit={save} />
       </DialogContent>
     </Dialog>
   );

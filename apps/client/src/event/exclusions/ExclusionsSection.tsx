@@ -31,13 +31,16 @@ export function ExclusionsSection({ event, setEvent }: EventSectionProps) {
     setAdding(false);
   }
 
+  const drawn = event.drawnAt !== null;
+  if (drawn && event.exclusions.length === 0) return null;
+
   return (
     <section className='flex flex-col gap-3'>
       <header>
         <h2 className='text-secondary text-[1.3125rem] leading-snug font-semibold'>
           Ils ne peuvent pas se tirer entre eux
         </h2>
-        <p className='text-muted-foreground mt-1 text-sm'>Facultatif — par exemple les couples.</p>
+        {!drawn && <p className='text-muted-foreground mt-1 text-sm'>Facultatif — par exemple les couples.</p>}
       </header>
       {event.exclusions.length > 0 && (
         <ul className='flex flex-col gap-2'>
@@ -47,9 +50,11 @@ export function ExclusionsSection({ event, setEvent }: EventSectionProps) {
               className='bg-card border-border border-l-secondary flex min-h-12 items-center justify-between rounded-lg border border-l-4 pl-3.5'
             >
               {nameOf(exclusion.participantIds[0])} &amp; {nameOf(exclusion.participantIds[1])}
-              <Button variant='ghost' className='text-primary' onClick={() => void remove(exclusion)}>
-                Retirer
-              </Button>
+              {!drawn && (
+                <Button variant='ghost' className='text-primary' onClick={() => void remove(exclusion)}>
+                  Retirer
+                </Button>
+              )}
             </li>
           ))}
         </ul>
@@ -59,15 +64,16 @@ export function ExclusionsSection({ event, setEvent }: EventSectionProps) {
           {error}
         </p>
       )}
-      {adding ? (
-        <AddExclusionForm participants={event.participants} onAdded={added} onCancel={() => setAdding(false)} />
-      ) : (
-        event.participants.length >= 2 && (
-          <Button variant='link' className='self-start' onClick={() => setAdding(true)}>
-            + Ajouter un couple
-          </Button>
-        )
-      )}
+      {!drawn &&
+        (adding ? (
+          <AddExclusionForm participants={event.participants} onAdded={added} onCancel={() => setAdding(false)} />
+        ) : (
+          event.participants.length >= 2 && (
+            <Button variant='link' className='self-start' onClick={() => setAdding(true)}>
+              + Ajouter un couple
+            </Button>
+          )
+        ))}
     </section>
   );
 }
