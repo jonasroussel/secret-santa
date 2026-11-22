@@ -1,5 +1,7 @@
 import { afterEach, expect, test } from 'bun:test';
 
+import type { Participant, SecretSantaEvent } from '@secret-santa/shared';
+
 import { createApp } from './app.ts';
 import type { Mail } from './application/ports.ts';
 import { createDatabase, migrate } from './infrastructure/database/connection.ts';
@@ -86,7 +88,39 @@ test('an unknown email gets the same answer but no mail', async () => {
 test('the admin pages need a session', async () => {
   const { call } = startApp();
 
-  const response = await call('GET', '/api/session');
+  const response = await call('GET', '/api/event');
 
   expect(response.status).toBe(401);
+});
+
+test('two participants cannot have the same first name', async () => {
+  const { call, signIn } = startApp();
+  const cookie = await signIn();
+  await call('PUT', '/api/event', { name: 'Noël 2026', date: '2026-12-24', budget: 30 }, cookie);
+  await call('POST', '/api/event/participants', { name: 'Hélène', email: 'helene@example.com' }, cookie);
+
+  const response = await call('POST', '/api/event/participants', { name: ' helene ', email: 'a@example.com' }, cookie);
+
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({ error: 'duplicate_name' });
+});
+
+test('deleting a participant removes its exclusions', async () => {
+  const { call, signIn } = startApp();
+  const cookie = await signIn();
+  await call('PUT', '/api/event', { name: 'Noël 2026', date: '2026-12-24', budget: null }, cookie);
+  const add = async (name: string) => {
+    const response = await call('POST', '/api/event/participants', { name, email: 'famille@example.com' }, cookie);
+    return (await response.json()) as Participant;
+  };
+  const [anne, paul, marie] = [await add('Anne'), await add('Paul'), await add('Marie')];
+  await call('POST', '/api/event/exclusions', { participantIds: [paul.id, anne.id] }, cookie);
+  await call('POST', '/api/event/exclusions', { participantIds: [paul.id, marie.id] }, cookie);
+  await call('POST', '/api/event/exclusions', { participantIds: [anne.id, marie.id] }, cookie);
+
+  await call('DELETE', `/api/event/participants/${paul.id}`, undefined, cookie);
+
+  const event = (await (await call('GET', '/api/event', undefined, cookie)).json()) as SecretSantaEvent;
+  expect(event.participants.map((participant) => participant.name)).toEqual(['Anne', 'Marie']);
+  expect(event.exclusions.map((exclusion) => exclusion.participantIds)).toEqual([[anne.id, marie.id]]);
 });

@@ -1,14 +1,16 @@
 import type { Database } from 'bun:sqlite';
 
-import type { HealthResponse, Session } from '@secret-santa/shared';
+import type { HealthResponse, SecretSantaEvent, Session } from '@secret-santa/shared';
 import type { BunRequest } from 'bun';
 
 import { type AuthDeps, AuthUseCase, SESSION_TTL_MS } from './application/auth-use-case.ts';
+import { EventUseCase } from './application/event-use-case.ts';
 import type { Clock, Mailer } from './application/ports.ts';
 import { RateLimiter } from './application/rate-limiter.ts';
 import { Validation } from './domain/validation.ts';
 import { AuthRepository } from './infrastructure/database/auth-repository.ts';
-import { errorResponse, field, noContent, readJson } from './presentation/http/http.ts';
+import { EventRepository } from './infrastructure/database/event-repository.ts';
+import { errorResponse, field, idParam, noContent, readJson, resultResponse } from './presentation/http/http.ts';
 
 export type AppDeps = {
   version: string;
@@ -30,6 +32,7 @@ export function createApp({ version, database, clock, mailer, appUrl, adminEmail
     appUrl,
     adminEmails,
   };
+  const events = new EventRepository(database);
   const secure = appUrl.startsWith('https:');
   const sessionCookie = (value: string, maxAgeMs: number) =>
     new Bun.Cookie(SESSION_COOKIE, value, {
@@ -78,6 +81,50 @@ export function createApp({ version, database, clock, mailer, appUrl, adminEmail
     },
     '/api/session': {
       GET: withSession((_request, session) => Response.json(session satisfies Session)),
+    },
+
+    '/api/event': {
+      GET: withSession(() => resultResponse(EventUseCase.get(events))),
+      PUT: withSession(async (request) => {
+        const details = Validation.eventDetails(await readJson(request));
+        if (!details) return errorResponse(400, 'invalid_input');
+        return Response.json(EventUseCase.save(events, details) satisfies SecretSantaEvent);
+      }),
+    },
+    '/api/event/participants': {
+      POST: withSession(async (request) => {
+        const input = Validation.participant(await readJson(request));
+        if (!input) return errorResponse(400, 'invalid_input');
+        return resultResponse(EventUseCase.addParticipant(events, input), 201);
+      }),
+    },
+    '/api/event/participants/:id': {
+      PUT: withSession(async (request: BunRequest<'/api/event/participants/:id'>) => {
+        const id = idParam(request.params.id);
+        if (id === null) return errorResponse(404, 'not_found');
+        const input = Validation.participant(await readJson(request));
+        if (!input) return errorResponse(400, 'invalid_input');
+        return resultResponse(EventUseCase.updateParticipant(events, id, input));
+      }),
+      DELETE: withSession((request: BunRequest<'/api/event/participants/:id'>) => {
+        const id = idParam(request.params.id);
+        if (id !== null) EventUseCase.removeParticipant(events, id);
+        return noContent();
+      }),
+    },
+    '/api/event/exclusions': {
+      POST: withSession(async (request) => {
+        const input = Validation.exclusion(await readJson(request));
+        if (!input) return errorResponse(400, 'invalid_input');
+        return resultResponse(EventUseCase.addExclusion(events, input), 201);
+      }),
+    },
+    '/api/event/exclusions/:id': {
+      DELETE: withSession((request: BunRequest<'/api/event/exclusions/:id'>) => {
+        const id = idParam(request.params.id);
+        if (id !== null) EventUseCase.removeExclusion(events, id);
+        return noContent();
+      }),
     },
   };
 }
