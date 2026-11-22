@@ -10,7 +10,7 @@ export const config = {
   /** Built client (`apps/client/dist`) to serve next to the API, so one port is enough. Unset in development. */
   clientDistPath: Bun.env.CLIENT_DIST_PATH ?? null,
   /** Public address of the app, for the mail open-tracking pixel. Vite proxies `/api` in development. */
-  appUrl: (production ? required('APP_URL') : (Bun.env.APP_URL ?? 'http://localhost:5173')).replace(/\/+$/, ''),
+  appUrl: (production ? required('APP_URL') : Bun.env.APP_URL || 'http://localhost:5173').replace(/\/+$/, ''),
   adminEmails: new Set(
     (Bun.env.ADMIN_EMAILS ?? '')
       .split(',')
@@ -18,7 +18,9 @@ export const config = {
       .filter(Boolean),
   ),
   /** For a real test in production: participant mails go to the admins. */
-  mailTestMode: ['1', 'true'].includes(Bun.env.MAIL_TEST_MODE ?? ''),
+  mailTestMode: flag('MAIL_TEST_MODE'),
+  /** Behind our reverse proxy (set by the Docker image): the client address comes from `X-Forwarded-For`. */
+  trustProxy: flag('TRUST_PROXY'),
   /** Without SMTP (development only: the mails hold who gives to whom), mails are printed in the log. */
   smtp:
     production || Bun.env.SMTP_HOST
@@ -36,4 +38,11 @@ function required(name: string): string {
   const value = Bun.env[name];
   if (!value) throw new Error(`Missing environment variable ${name}`);
   return value;
+}
+
+function flag(name: string): boolean {
+  const value = (Bun.env[name] ?? '').trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(value)) return true;
+  if (['', '0', 'false', 'no', 'off'].includes(value)) return false;
+  throw new Error(`${name} must be 1/true/yes/on or 0/false/no/off, not "${value}"`);
 }
