@@ -12,9 +12,10 @@ export function createStaticFiles(distPath: string) {
     if (request.method !== 'GET' && request.method !== 'HEAD') return new Response(null, { status: 405 });
 
     const { pathname } = new URL(request.url);
-    const path = resolve(root, `.${decodeURIComponent(pathname)}`);
+    const decoded = decodePath(pathname);
+    const path = decoded === null ? null : resolve(root, `.${decoded}`);
     // Never serve anything outside the client folder ("/../").
-    if (path.startsWith(root + sep)) {
+    if (path?.startsWith(root + sep)) {
       const file = Bun.file(path);
       if (await file.exists()) {
         const cache = pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache';
@@ -23,4 +24,14 @@ export function createStaticFiles(distPath: string) {
     }
     return new Response(indexHtml, { headers: { 'cache-control': 'no-cache', 'content-type': 'text/html' } });
   };
+}
+
+/** `null` for a malformed escape like `/%E0%A4%A` or a NUL byte: such a path gets `index.html` like any unknown one. */
+function decodePath(pathname: string): string | null {
+  try {
+    const decoded = decodeURIComponent(pathname);
+    return decoded.includes('\0') ? null : decoded;
+  } catch {
+    return null;
+  }
 }
