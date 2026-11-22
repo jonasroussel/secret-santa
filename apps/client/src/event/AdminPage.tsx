@@ -1,4 +1,5 @@
 import type { SecretSantaEvent, Session } from '@secret-santa/shared';
+import { FlaskConicalIcon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { Brand } from '@/components/brand.tsx';
@@ -21,8 +22,6 @@ function failure(error: ApiErrorCode): State {
 }
 
 async function loadEvent(): Promise<State> {
-  const session = await api<Session>('/api/session');
-  if (!session.ok) return failure(session.error);
   const event = await api<SecretSantaEvent>('/api/event');
   if (event.ok) return { status: 'ready', event: event.data };
   return event.error === 'not_found' ? { status: 'empty' } : failure(event.error);
@@ -35,13 +34,30 @@ async function logout() {
 
 export function AdminPage() {
   const [state, setState] = useState<State>({ status: 'loading' });
+  const [mailTestMode, setMailTestMode] = useState(false);
 
   useEffect(() => {
-    void loadEvent().then(setState);
+    void (async () => {
+      const session = await api<Session>('/api/session');
+      if (!session.ok) {
+        setState(failure(session.error));
+        return;
+      }
+      setMailTestMode(session.data.mailTestMode);
+      setState(await loadEvent());
+    })();
   }, []);
 
   return (
     <main className='mx-auto flex max-w-xl flex-col gap-6 px-6 py-4'>
+      {mailTestMode && (
+        <p role='status' className='bg-pending text-pending-foreground flex gap-2.5 rounded-lg px-3.5 py-2.5 text-sm'>
+          <FlaskConicalIcon aria-hidden='true' className='mt-0.5 size-4 shrink-0' />
+          <span>
+            <strong>Mode test :</strong> les mails des participants sont envoyés aux adresses admin.
+          </span>
+        </p>
+      )}
       <header className='flex items-center justify-between'>
         <Brand />
         <Button variant='ghost' size='sm' onClick={() => void logout()}>
