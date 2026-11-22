@@ -7,7 +7,11 @@ export type ApiError = {
     | 'invalid_code'
     | 'too_many_requests'
     | 'duplicate_name'
-    | 'duplicate_exclusion';
+    | 'duplicate_exclusion'
+    | 'draw_locked'
+    | 'not_drawn'
+    | 'not_enough_participants'
+    | 'draw_impossible';
 };
 
 export type HealthResponse = {
@@ -17,7 +21,18 @@ export type HealthResponse = {
 
 export type Session = { email: string };
 
-export type Participant = { id: number; name: string; email: string };
+export type MailStatus = 'not_sent' | 'sent' | 'failed' | 'opened';
+
+export type Participant = {
+  id: number;
+  name: string;
+  email: string;
+  mailStatus: MailStatus;
+  /** ISO */
+  mailSentAt: string | null;
+  /** ISO */
+  mailOpenedAt: string | null;
+};
 
 export type Exclusion = { id: number; participantIds: [number, number] };
 
@@ -27,9 +42,16 @@ export type EventDetails = {
   date: string;
   /** Whole euros. */
   budget: number | null;
+  /** The organizer's free text for the participant mails, max 1000 chars. */
+  message: string | null;
 };
 
-export type SecretSantaEvent = EventDetails & { participants: Participant[]; exclusions: Exclusion[] };
+export type SecretSantaEvent = EventDetails & {
+  /** ISO, `null` until the draw. */
+  drawnAt: string | null;
+  participants: Participant[];
+  exclusions: Exclusion[];
+};
 
 export type ParticipantInput = { name: string; email: string };
 
