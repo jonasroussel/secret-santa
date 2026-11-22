@@ -32,7 +32,9 @@ export function VerifyCodeForm({ email, onChangeEmail }: { email: string; onChan
     if (result.ok) {
       setCode('');
       setResent(true);
-    } else setError(errorMessage(result.error));
+    } else {
+      setError(errorMessage(result.error));
+    }
   }
 
   return (
