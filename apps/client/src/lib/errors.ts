@@ -4,7 +4,7 @@ const messages: Record<ApiErrorCode, string> = {
   not_found: 'Cet élément n’existe plus. Recharge la page.',
   unauthorized: 'Ta session a expiré. Reconnecte-toi.',
   invalid_input: 'Vérifie les informations saisies.',
-  invalid_link: 'Ce lien n’est plus valable.',
+  invalid_code: 'Ce code n’est pas bon ou a expiré.',
   too_many_requests: 'Trop de demandes. Réessaie dans quelques minutes.',
   duplicate_name: 'Ce prénom est déjà dans la liste.',
   duplicate_exclusion: 'Ce couple est déjà dans la liste.',
