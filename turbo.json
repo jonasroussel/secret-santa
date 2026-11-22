@@ -16,7 +16,18 @@
     "dev": {
       "cache": false,
       "persistent": true,
-      "passThroughEnv": ["PORT", "DATABASE_PATH", "API_URL"]
+      "passThroughEnv": [
+        "PORT",
+        "DATABASE_PATH",
+        "API_URL",
+        "APP_URL",
+        "ADMIN_EMAILS",
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_USER",
+        "SMTP_PASSWORD",
+        "MAIL_FROM"
+      ]
     }
   }
 }

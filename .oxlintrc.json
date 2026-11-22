@@ -12,7 +12,8 @@
   "rules": {
     "react/react-in-jsx-scope": "off",
     "import/no-unassigned-import": ["warn", { "allow": ["**/*.css"] }],
-    "no-nested-ternary": "error"
+    "no-nested-ternary": "error",
+    "typescript/no-extraneous-class": ["warn", { "allowStaticOnly": true }]
   },
   "ignorePatterns": ["**/dist/**", "**/node_modules/**"]
 }
