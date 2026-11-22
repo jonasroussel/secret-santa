@@ -13,13 +13,19 @@ const PARTICIPANT_SELECT = `
     a.mail_opened_at AS mailOpenedAt
   FROM participants p LEFT JOIN assignments a ON a.giver_id = p.id`;
 
+/** A giver's mail, tied to the draw it belongs to (`receiverId`, `drawnAt`) so a late result is not misfiled. */
 export type MailToSend = {
   giverId: number;
   giverName: string;
   giverEmail: string;
+  receiverId: number;
   receiverName: string;
   receivedCancelledDraw: boolean;
+  drawnAt: number;
 };
+
+/** The assignment is still the one the mail was built from: same receiver, same draw. */
+const SAME_ASSIGNMENT = 'giver_id = ? AND receiver_id = ? AND (SELECT drawn_at FROM event WHERE id = 1) = ?';
 
 export class EventRepository {
   readonly #database: Database;
@@ -30,8 +36,10 @@ export class EventRepository {
 
   find(): SecretSantaEvent | null {
     const event = this.#database
-      .query<EventDetails & { drawnAt: number | null }, []>(
-        'SELECT name, date, budget, message, drawn_at AS drawnAt FROM event WHERE id = 1',
+      .query<EventDetails & { drawnAt: number | null; drawTested: number }, []>(
+        `SELECT name, date, budget, message, drawn_at AS drawnAt,
+           EXISTS (SELECT 1 FROM assignments WHERE sent_in_test_mode = 1) AS drawTested
+         FROM event WHERE id = 1`,
       )
       .get();
     if (!event) return null;
@@ -45,7 +53,13 @@ export class EventRepository {
       )
       .all()
       .map(({ id, first, second }): Exclusion => ({ id, participantIds: [first, second] }));
-    return { ...event, drawnAt: EventRepository.#iso(event.drawnAt), participants, exclusions };
+    return {
+      ...event,
+      drawnAt: EventRepository.#iso(event.drawnAt),
+      drawTested: event.drawTested === 1,
+      participants,
+      exclusions,
+    };
   }
 
   exists(): boolean {
@@ -137,7 +151,7 @@ export class EventRepository {
     this.#database.transaction(() => {
       this.#database.run(
         `UPDATE participants SET received_cancelled_draw = 1
-         WHERE id IN (SELECT giver_id FROM assignments WHERE mail_status IN ('sent', 'opened'))`,
+         WHERE id IN (SELECT giver_id FROM assignments WHERE delivered_to_participant = 1)`,
       );
       this.#database.run('DELETE FROM assignments');
       this.#database.run('UPDATE event SET drawn_at = NULL WHERE id = 1');
@@ -147,33 +161,46 @@ export class EventRepository {
   mailToSend(giverId: number): MailToSend | null {
     const row = this.#database
       .query<Omit<MailToSend, 'receivedCancelledDraw'> & { receivedCancelledDraw: number }, [number]>(
-        `SELECT a.giver_id AS giverId, giver.name AS giverName, giver.email AS giverEmail,
-           receiver.name AS receiverName, giver.received_cancelled_draw AS receivedCancelledDraw
+        `SELECT a.giver_id AS giverId, giver.name AS giverName, giver.email AS giverEmail, a.receiver_id AS receiverId,
+           receiver.name AS receiverName, giver.received_cancelled_draw AS receivedCancelledDraw, event.drawn_at AS drawnAt
          FROM assignments a
          JOIN participants giver ON giver.id = a.giver_id
          JOIN participants receiver ON receiver.id = a.receiver_id
+         JOIN event ON event.id = 1
          WHERE a.giver_id = ?`,
       )
       .get(giverId);
     return row && { ...row, receivedCancelledDraw: row.receivedCancelledDraw === 1 };
   }
 
-  recordMailSent(giverId: number, tokenHash: string, now: number): void {
-    this.#database.run(
-      `UPDATE assignments SET mail_status = 'sent', mail_token_hash = ?, mail_sent_at = ?, mail_opened_at = NULL,
-         mail_error = NULL
-       WHERE giver_id = ?`,
-      [tokenHash, now, giverId],
+  /**
+   * `false` when the draw changed while the mail was out: nothing is recorded then. Who got it (the participant, or
+   * the admins in test mode) is remembered for good, whatever later resends do.
+   */
+  recordMailSent(mail: MailToSend, tokenHash: string, now: number, inTestMode: boolean): boolean {
+    return (
+      this.#database.run(
+        `UPDATE assignments SET mail_status = 'sent', mail_token_hash = ?, mail_sent_at = ?, mail_opened_at = NULL,
+           mail_error = NULL, delivered_to_participant = MAX(delivered_to_participant, ?),
+           sent_in_test_mode = MAX(sent_in_test_mode, ?)
+         WHERE ${SAME_ASSIGNMENT}`,
+        [tokenHash, now, inTestMode ? 0 : 1, inTestMode ? 1 : 0, mail.giverId, mail.receiverId, mail.drawnAt],
+      ).changes === 1
     );
   }
 
-  recordMailFailed(giverId: number, error: string): void {
+  recordMailFailed(mail: MailToSend, error: string): void {
     this.#database.run(
       `UPDATE assignments SET mail_status = 'failed', mail_token_hash = NULL, mail_sent_at = NULL,
          mail_opened_at = NULL, mail_error = ?
-       WHERE giver_id = ?`,
-      [error, giverId],
+       WHERE ${SAME_ASSIGNMENT}`,
+      [error, mail.giverId, mail.receiverId, mail.drawnAt],
     );
+  }
+
+  /** A mail of a draw cancelled meanwhile reached this participant. */
+  flagReceivedCancelledDraw(giverId: number): void {
+    this.#database.run('UPDATE participants SET received_cancelled_draw = 1 WHERE id = ?', [giverId]);
   }
 
   /** Only the first open of the participant's current mail counts. */

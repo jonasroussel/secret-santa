@@ -63,4 +63,13 @@ export const migrations: string[] = [
     mail_error TEXT
   );
   `,
+  // Whether a mail of this draw really reached the participant (not a failure, not test mode): only those get the
+  // « tirage refait » notice when the draw is cancelled.
+  `
+  ALTER TABLE assignments ADD COLUMN delivered_to_participant INTEGER NOT NULL DEFAULT 0;
+  `,
+  // Sticky: a mail of this draw went to the admins in test mode, so they know its assignments; it must be redone.
+  `
+  ALTER TABLE assignments ADD COLUMN sent_in_test_mode INTEGER NOT NULL DEFAULT 0;
+  `,
 ];

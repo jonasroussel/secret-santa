@@ -11,7 +11,8 @@ export type ApiError = {
     | 'draw_locked'
     | 'not_drawn'
     | 'not_enough_participants'
-    | 'draw_impossible';
+    | 'draw_impossible'
+    | 'draw_tested';
 };
 
 export type HealthResponse = {
@@ -53,6 +54,11 @@ export type EventDetails = {
 export type SecretSantaEvent = EventDetails & {
   /** ISO, `null` until the draw. */
   drawnAt: string | null;
+  /**
+   * Mails of this draw went out in test mode (to the admins): with test mode off it cannot be sent for real, it has
+   * to be cancelled and redone.
+   */
+  drawTested: boolean;
   participants: Participant[];
   exclusions: Exclusion[];
 };

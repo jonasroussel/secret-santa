@@ -46,6 +46,8 @@ export class DrawUseCase {
     const event = deps.repository.find();
     if (!event) return fail('not_found');
     if (!event.drawnAt) return fail('not_drawn');
+    // The admins have read this draw's assignments: it must be redone before going live.
+    if (event.drawTested && deps.testRecipients === null) return fail('draw_tested');
     const mail = deps.repository.mailToSend(participantId);
     if (!mail) return fail('not_found');
     await DrawUseCase.#send(deps, event, mail);
@@ -56,17 +58,22 @@ export class DrawUseCase {
     repository.recordMailOpened(Tokens.hash(token), clock.now());
   }
 
-  /** A new pixel token for every send, so only the latest mail counts as opened. */
+  /**
+   * A new pixel token for every send, so only the latest mail counts as opened. When the draw is cancelled while the
+   * mail is out, the result is not recorded; a participant who got it will see the « tirage refait » notice next time.
+   */
   static async #send(deps: DrawDeps, event: SecretSantaEvent, mail: MailToSend) {
     const { repository, mailer, clock, appUrl, testRecipients } = deps;
     const token = Tokens.random();
     try {
       const pixelUrl = `${appUrl}/api/mail/open/${token}`;
       await mailer.send(ParticipantMail.build({ ...mail, event, pixelUrl, testRecipients }));
-      repository.recordMailSent(mail.giverId, Tokens.hash(token), clock.now());
+      const inTestMode = testRecipients !== null;
+      const recorded = repository.recordMailSent(mail, Tokens.hash(token), clock.now(), inTestMode);
+      if (!recorded && !inTestMode) repository.flagReceivedCancelledDraw(mail.giverId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      repository.recordMailFailed(mail.giverId, message);
+      repository.recordMailFailed(mail, message);
       console.error(`Mail to participant ${mail.giverId} failed: ${message}`);
     }
   }

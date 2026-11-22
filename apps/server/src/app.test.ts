@@ -8,16 +8,23 @@ import { createDatabase, migrate } from './infrastructure/database/connection.ts
 
 const ADMIN = 'papa@example.com';
 const EVENT = { name: 'Noël 2026', date: '2026-12-24', budget: 30, message: null };
-let stopServer = () => {};
+const stops: (() => void)[] = [];
 
-afterEach(() => stopServer());
+afterEach(() => stops.splice(0).forEach((stop) => stop()));
 
-function startApp({ mailTestMode = false } = {}) {
+function newDatabase() {
   const database = createDatabase(':memory:');
   migrate(database);
+  return database;
+}
+
+/** `database` lets a second app (e.g. test mode turned off) continue with the same data. */
+function startApp({ mailTestMode = false, database = newDatabase() } = {}) {
   const clock = { time: Date.UTC(2026, 10, 22), now: () => clock.time };
   const mails: Mail[] = [];
   const failingEmails = new Set<string>();
+  let held = Promise.resolve();
+  let reached: (() => void) | null = null;
   let codes = 0;
   const server = Bun.serve({
     port: 0,
@@ -27,6 +34,8 @@ function startApp({ mailTestMode = false } = {}) {
       clock,
       mailer: {
         send: async (mail) => {
+          reached?.();
+          await held;
           if (failingEmails.has(mail.to)) throw new Error('Mailbox unavailable');
           mails.push(mail);
         },
@@ -38,7 +47,15 @@ function startApp({ mailTestMode = false } = {}) {
       mailTestMode,
     }),
   });
-  stopServer = () => server.stop(true);
+  stops.push(() => server.stop(true));
+  /** Mails wait until `release()`, like a slow SMTP server; `reached` resolves once one is waiting. */
+  const holdMails = () => {
+    const gate = Promise.withResolvers<void>();
+    const arrival = Promise.withResolvers<void>();
+    held = gate.promise;
+    reached = arrival.resolve;
+    return { release: gate.resolve, reached: arrival.promise };
+  };
 
   const call = (method: string, path: string, body?: unknown, cookie?: string) =>
     fetch(new URL(path, server.url), {
@@ -75,7 +92,7 @@ function startApp({ mailTestMode = false } = {}) {
     return { as, add, event, sendMails };
   };
 
-  return { call, clock, mails, failingEmails, requestCode, verify, organizer };
+  return { call, clock, mails, failingEmails, holdMails, requestCode, verify, organizer };
 }
 
 const giverIn = (mail: Mail) => mail.text.match(/^Bonjour (.+),$/m)?.[1];
@@ -245,6 +262,67 @@ test('after a cancelled draw whose mails went out, the new mails say the draw wa
   ]);
 });
 
+test('mails sent in test mode do not count as received when the draw is redone', async () => {
+  const database = newDatabase();
+  const testing = startApp({ mailTestMode: true, database });
+  const trial = await testing.organizer();
+  for (const name of ['Anne', 'Paul', 'Marie']) await trial.add(name);
+  await trial.as('POST', '/api/event/draw');
+  await trial.sendMails();
+  await trial.as('DELETE', '/api/event/draw');
+
+  const live = startApp({ database });
+  const { as, sendMails } = await live.organizer();
+  await as('POST', '/api/event/draw');
+  await sendMails();
+
+  expect(live.mails.map((mail) => mail.to).toSorted()).toEqual([
+    'anne@example.com',
+    'marie@example.com',
+    'paul@example.com',
+  ]);
+  expect(live.mails.some((mail) => mail.text.includes('tirage a été refait'))).toBe(false);
+});
+
+test('a participant whose resend failed still gets the notice after a redraw', async () => {
+  const { organizer, mails, failingEmails } = startApp();
+  const { as, add, sendMails } = await organizer();
+  const [anne] = [await add('Anne'), await add('Paul'), await add('Marie')];
+  await as('POST', '/api/event/draw');
+  await sendMails();
+  failingEmails.add(anne.email);
+  await as('POST', `/api/event/participants/${anne.id}/mail`);
+  failingEmails.clear();
+
+  await as('DELETE', '/api/event/draw');
+  mails.length = 0;
+  await as('POST', '/api/event/draw');
+  await sendMails();
+
+  expect(mails.find((mail) => mail.to === anne.email)!.text).toContain('Le tirage a été refait');
+});
+
+test('a mail still out when the draw is redone is not filed under the new draw', async () => {
+  const { organizer, mails, clock, holdMails } = startApp();
+  const { as, add } = await organizer();
+  const [anne] = [await add('Anne'), await add('Paul'), await add('Marie')];
+  await as('POST', '/api/event/draw');
+  const { release, reached } = holdMails();
+  const sending = as('POST', `/api/event/participants/${anne.id}/mail`);
+  await reached;
+
+  await as('DELETE', '/api/event/draw');
+  clock.time += 1000;
+  await as('POST', '/api/event/draw');
+  release();
+
+  expect(((await (await sending).json()) as Participant).mailStatus).toBe('not_sent');
+  expect(mails).toHaveLength(1);
+  mails.length = 0;
+  await as('POST', `/api/event/participants/${anne.id}/mail`);
+  expect(mails[0]!.text).toContain('Le tirage a été refait');
+});
+
 test('the organizer never sees who gives to whom', async () => {
   const { organizer } = startApp();
   const { as, add, event, sendMails } = await organizer();
@@ -254,7 +332,15 @@ test('the organizer never sees who gives to whom', async () => {
 
   const { participants, ...details } = await event();
 
-  expect(Object.keys(details).toSorted()).toEqual(['budget', 'date', 'drawnAt', 'exclusions', 'message', 'name']);
+  expect(Object.keys(details).toSorted()).toEqual([
+    'budget',
+    'date',
+    'drawTested',
+    'drawnAt',
+    'exclusions',
+    'message',
+    'name',
+  ]);
   for (const participant of participants) {
     expect(Object.keys(participant).toSorted()).toEqual([
       'email',
@@ -323,4 +409,59 @@ test('in mail test mode the participant mails go to the admins, marked as a test
   expect(mails[0]!.text.startsWith(notice)).toBe(true);
   expect(mails[0]!.html).toContain(notice);
   expect(await (await as('GET', '/api/session')).json()).toEqual({ email: ADMIN, mailTestMode: true });
+});
+
+test('a draw sent in test mode must be redone before real mails go out', async () => {
+  const database = newDatabase();
+  const trial = await startApp({ mailTestMode: true, database }).organizer();
+  for (const name of ['Anne', 'Paul', 'Marie']) await trial.add(name);
+  await trial.as('POST', '/api/event/draw');
+  await trial.sendMails();
+
+  const live = startApp({ database });
+  const { as, event, sendMails } = await live.organizer();
+  const { drawTested, participants } = await event();
+  const refused = await as('POST', `/api/event/participants/${participants[0]!.id}/mail`);
+
+  expect(drawTested).toBe(true);
+  expect([refused.status, await refused.json(), live.mails]).toEqual([409, { error: 'draw_tested' }, []]);
+
+  await as('DELETE', '/api/event/draw');
+  await as('POST', '/api/event/draw');
+  await sendMails();
+  expect(live.mails).toHaveLength(3);
+  expect((await event()).drawTested).toBe(false);
+});
+
+test('a draw stays tested once a test mail went out, whatever the later sends', async () => {
+  const database = newDatabase();
+  const testing = startApp({ mailTestMode: true, database });
+  const trial = await testing.organizer();
+  const [anne, paul] = [await trial.add('Anne'), await trial.add('Paul'), await trial.add('Marie')];
+  await trial.as('POST', '/api/event/draw');
+  const live = await startApp({ database }).organizer();
+
+  await trial.as('POST', `/api/event/participants/${anne.id}/mail`);
+  testing.failingEmails.add('papa@example.com, maman@example.com');
+  await trial.as('POST', `/api/event/participants/${anne.id}/mail`);
+  expect((await live.event()).drawTested).toBe(true);
+
+  await live.as('DELETE', '/api/event/draw');
+  await live.as('POST', '/api/event/draw');
+  await live.as('POST', `/api/event/participants/${paul.id}/mail`);
+  testing.failingEmails.clear();
+  await trial.as('POST', `/api/event/participants/${paul.id}/mail`);
+  expect((await live.event()).drawTested).toBe(true);
+});
+
+test('an email corrected after the draw gets the resent mail', async () => {
+  const { organizer, mails } = startApp();
+  const { as, add } = await organizer();
+  const [anne] = [await add('Anne'), await add('Paul'), await add('Marie')];
+  await as('POST', '/api/event/draw');
+  await as('PUT', `/api/event/participants/${anne.id}`, { name: 'Anne', email: 'anne.martin@example.com' });
+
+  await as('POST', `/api/event/participants/${anne.id}/mail`);
+
+  expect(mails.map((mail) => mail.to)).toEqual(['anne.martin@example.com']);
 });

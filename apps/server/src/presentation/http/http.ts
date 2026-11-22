@@ -7,6 +7,7 @@ const STATUS: Record<ApiError['error'], number> = {
   not_drawn: 409,
   draw_locked: 409,
   draw_impossible: 409,
+  draw_tested: 409,
   not_enough_participants: 400,
   not_found: 404,
   duplicate_name: 409,
