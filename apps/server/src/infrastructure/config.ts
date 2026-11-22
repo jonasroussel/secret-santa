@@ -1,14 +1,12 @@
 import type { SmtpConfig } from './mail/smtp-mailer.ts';
 
-const production = Bun.env.NODE_ENV === 'production';
-
 export const config = {
+  /** Set by the Docker image. Outside production the sign-in code is always 123456. */
+  production: Bun.env.NODE_ENV === 'production',
   port: Number(Bun.env.PORT ?? 3629),
   databasePath: Bun.env.DATABASE_PATH ?? 'data/secret-santa.sqlite',
   /** Built client (`apps/client/dist`) to serve next to the API, so one port is enough. Unset in development. */
   clientDistPath: Bun.env.CLIENT_DIST_PATH ?? null,
-  /** Public address of the client, used in the emailed links. */
-  appUrl: (production ? required('APP_URL') : (Bun.env.APP_URL ?? 'http://localhost:5173')).replace(/\/+$/, ''),
   adminEmails: new Set(
     (Bun.env.ADMIN_EMAILS ?? '')
       .split(',')

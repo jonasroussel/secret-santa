@@ -37,4 +37,14 @@ export const migrations: string[] = [
     CHECK (first_participant_id < second_participant_id)
   );
   `,
+  // Sign-in by a 6-digit code instead of a link: one active code per email, deleted once used or after 5 failures.
+  `
+  DROP TABLE login_tokens;
+  CREATE TABLE login_codes (
+    email TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    failed_attempts INTEGER NOT NULL DEFAULT 0
+  );
+  `,
 ];

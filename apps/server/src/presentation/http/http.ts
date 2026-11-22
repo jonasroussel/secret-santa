@@ -3,7 +3,7 @@ import type { ApiError } from '@secret-santa/shared';
 const STATUS: Record<ApiError['error'], number> = {
   invalid_input: 400,
   unauthorized: 401,
-  invalid_link: 401,
+  invalid_code: 401,
   not_found: 404,
   duplicate_name: 409,
   duplicate_exclusion: 409,

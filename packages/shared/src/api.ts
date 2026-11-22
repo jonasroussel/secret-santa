@@ -4,7 +4,7 @@ export type ApiError = {
     | 'not_found'
     | 'unauthorized'
     | 'invalid_input'
-    | 'invalid_link'
+    | 'invalid_code'
     | 'too_many_requests'
     | 'duplicate_name'
     | 'duplicate_exclusion';

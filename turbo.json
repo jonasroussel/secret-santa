@@ -20,7 +20,6 @@
         "PORT",
         "DATABASE_PATH",
         "API_URL",
-        "APP_URL",
         "ADMIN_EMAILS",
         "SMTP_HOST",
         "SMTP_PORT",

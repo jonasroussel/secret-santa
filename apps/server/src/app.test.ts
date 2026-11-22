@@ -16,6 +16,7 @@ function startApp() {
   migrate(database);
   const clock = { time: Date.UTC(2026, 10, 22), now: () => clock.time };
   const mails: Mail[] = [];
+  let codes = 0;
   const server = Bun.serve({
     port: 0,
     routes: createApp({
@@ -23,7 +24,8 @@ function startApp() {
       database,
       clock,
       mailer: { send: async (mail) => void mails.push(mail) },
-      appUrl: 'http://localhost:5173',
+      generateCode: () => String(++codes).padStart(6, '0'),
+      secureCookie: false,
       adminEmails: new Set([ADMIN]),
     }),
   });
@@ -36,26 +38,27 @@ function startApp() {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
 
-  const requestToken = async (email = ADMIN) => {
-    await call('POST', '/api/auth/request-link', { email });
-    return mails.at(-1)?.text.match(/connexion\?token=([\w-]+)/)?.[1];
+  const requestCode = async (email = ADMIN) => {
+    await call('POST', '/api/auth/request-code', { email });
+    return mails.at(-1)?.text.match(/^\d{6}$/m)?.[0];
   };
+  const verify = (code: string | undefined) => call('POST', '/api/auth/verify', { email: ADMIN, code });
 
   const signIn = async () => {
-    const response = await call('POST', '/api/auth/verify', { token: await requestToken() });
+    const response = await verify(await requestCode());
     return response.headers.get('set-cookie')!.split(';')[0]!;
   };
 
-  return { call, clock, mails, requestToken, signIn };
+  return { call, clock, mails, requestCode, verify, signIn };
 }
 
-test('an admin signs in with the emailed link', async () => {
-  const { call, mails, requestToken } = startApp();
+test('an admin signs in with the emailed code', async () => {
+  const { call, mails, requestCode } = startApp();
 
-  const token = await requestToken(' Papa@Example.com ');
-  expect(mails.map((mail) => mail.to)).toEqual([ADMIN]);
+  const code = await requestCode(' Papa@Example.com ');
+  expect(mails.map((mail) => [mail.to, mail.subject])).toEqual([[ADMIN, `${code} — ton code Secret Santa`]]);
 
-  const verify = await call('POST', '/api/auth/verify', { token });
+  const verify = await call('POST', '/api/auth/verify', { email: 'PAPA@example.com', code });
   expect(verify.status).toBe(204);
   const cookie = verify.headers.get('set-cookie')!;
   expect(cookie).toContain('HttpOnly');
@@ -64,22 +67,31 @@ test('an admin signs in with the emailed link', async () => {
   expect(await session.json()).toEqual({ email: ADMIN });
 });
 
-test('a link works only once and only for 15 minutes', async () => {
-  const { call, clock, requestToken } = startApp();
+test('a code works only once and only for 15 minutes', async () => {
+  const { clock, requestCode, verify } = startApp();
 
-  const token = await requestToken();
-  expect((await call('POST', '/api/auth/verify', { token })).status).toBe(204);
-  expect(await (await call('POST', '/api/auth/verify', { token })).json()).toEqual({ error: 'invalid_link' });
+  const code = await requestCode();
+  expect((await verify(code)).status).toBe(204);
+  expect(await (await verify(code)).json()).toEqual({ error: 'invalid_code' });
 
-  const late = await requestToken();
+  const late = await requestCode();
   clock.time += 15 * 60 * 1000;
-  expect((await call('POST', '/api/auth/verify', { token: late })).status).toBe(401);
+  expect((await verify(late)).status).toBe(401);
+});
+
+test('after 5 wrong codes even the right one is refused', async () => {
+  const { requestCode, verify } = startApp();
+
+  const code = await requestCode();
+  for (let attempt = 0; attempt < 5; attempt++) expect((await verify('999999')).status).toBe(401);
+
+  expect((await verify(code)).status).toBe(401);
 });
 
 test('an unknown email gets the same answer but no mail', async () => {
   const { call, mails } = startApp();
 
-  const response = await call('POST', '/api/auth/request-link', { email: 'someone@example.com' });
+  const response = await call('POST', '/api/auth/request-code', { email: 'someone@example.com' });
 
   expect(response.status).toBe(204);
   expect(mails).toEqual([]);

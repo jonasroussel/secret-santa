@@ -1,4 +1,5 @@
 import { createApp } from './app.ts';
+import { Tokens } from './application/tokens.ts';
 import { appVersion } from './infrastructure/app-version.ts';
 import { systemClock } from './infrastructure/clock.ts';
 import { config } from './infrastructure/config.ts';
@@ -23,7 +24,8 @@ const server = Bun.serve({
     database,
     clock: systemClock,
     mailer: config.smtp ? createSmtpMailer(config.smtp) : consoleMailer,
-    appUrl: config.appUrl,
+    generateCode: config.production ? Tokens.code : () => '123456',
+    secureCookie: config.production,
     adminEmails: config.adminEmails,
   }),
   // Unknown API paths stay JSON errors; everything else is the client, when it is served from here.

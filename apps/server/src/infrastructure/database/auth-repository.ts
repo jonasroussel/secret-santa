@@ -7,24 +7,31 @@ export class AuthRepository {
     this.#database = database;
   }
 
-  addLoginToken(tokenHash: string, email: string, expiresAt: number, now: number): void {
-    this.#database.run('DELETE FROM login_tokens WHERE expires_at <= ?', [now]);
-    this.#database.run('INSERT INTO login_tokens (token_hash, email, expires_at) VALUES (?, ?, ?)', [
-      tokenHash,
-      email,
-      expiresAt,
-    ]);
+  /** Replaces the previous code of this email, if any. */
+  saveCode(email: string, codeHash: string, expiresAt: number): void {
+    this.#database.run(
+      `INSERT INTO login_codes (email, code_hash, expires_at) VALUES (?, ?, ?)
+       ON CONFLICT (email) DO UPDATE SET code_hash = excluded.code_hash, expires_at = excluded.expires_at,
+         failed_attempts = 0`,
+      [email, codeHash, expiresAt],
+    );
   }
 
-  /** Marks the token used and returns its email, or `null` when it is unknown, used or expired. */
-  useLoginToken(tokenHash: string, now: number): string | null {
-    const row = this.#database
-      .query<{ email: string }, [number, string, number]>(
-        `UPDATE login_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?
-         RETURNING email`,
+  findCode(email: string): { codeHash: string; expiresAt: number; failedAttempts: number } | null {
+    return this.#database
+      .query<{ codeHash: string; expiresAt: number; failedAttempts: number }, [string]>(
+        `SELECT code_hash AS codeHash, expires_at AS expiresAt, failed_attempts AS failedAttempts
+         FROM login_codes WHERE email = ?`,
       )
-      .get(now, tokenHash, now);
-    return row?.email ?? null;
+      .get(email);
+  }
+
+  countFailedAttempt(email: string): void {
+    this.#database.run('UPDATE login_codes SET failed_attempts = failed_attempts + 1 WHERE email = ?', [email]);
+  }
+
+  deleteCode(email: string): void {
+    this.#database.run('DELETE FROM login_codes WHERE email = ?', [email]);
   }
 
   addSession(tokenHash: string, email: string, expiresAt: number, now: number): void {

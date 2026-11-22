@@ -8,51 +8,64 @@ export type AuthDeps = {
   clock: Clock;
   mailer: Mailer;
   limiter: RateLimiter;
-  appUrl: string;
+  generateCode: () => string;
   adminEmails: ReadonlySet<string>;
 };
 
-const LOGIN_TOKEN_TTL_MS = 15 * 60 * 1000;
+const CODE_TTL_MS = 15 * 60 * 1000;
+const MAX_FAILED_ATTEMPTS = 5;
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export class AuthUseCase {
   /**
-   * Emails a login link to admins only, but answers the same way for everyone so nobody learns who is an admin. The
+   * Emails a sign-in code to admins only, but answers the same way for everyone so nobody learns who is an admin. The
    * mail is not awaited for the same reason (an SMTP round trip would show in the response time).
    */
-  static requestLink(deps: AuthDeps, email: string): 'sent' | 'too_many_requests' {
+  static requestCode(deps: AuthDeps, email: string): 'sent' | 'too_many_requests' {
     if (!deps.limiter.allow(email)) return 'too_many_requests';
     if (!deps.adminEmails.has(email)) return 'sent';
 
-    const now = deps.clock.now();
-    const token = Tokens.random();
-    deps.repository.addLoginToken(Tokens.hash(token), email, now + LOGIN_TOKEN_TTL_MS, now);
-    const link = `${deps.appUrl}/connexion?token=${token}`;
+    const code = deps.generateCode();
+    deps.repository.saveCode(email, Tokens.hash(code), deps.clock.now() + CODE_TTL_MS);
     deps.mailer
       .send({
         to: email,
-        subject: 'Ton lien de connexion — Secret Santa',
+        subject: `${code} — ton code Secret Santa`,
         text: [
           'Bonjour,',
           '',
-          'Voici ton lien pour te connecter à l’organisation du Secret Santa :',
+          'Voici ton code pour te connecter à l’organisation du Secret Santa :',
           '',
-          link,
+          code,
           '',
-          'Ce lien est valable 15 minutes et ne fonctionne qu’une seule fois.',
-          'Si tu n’as pas demandé à te connecter, ignore simplement ce message.',
+          'Il est valable 15 minutes et ne fonctionne qu’une seule fois.',
+          'Si tu n’as pas demandé ce code, ignore ce message.',
         ].join('\n'),
       })
-      .catch((error: unknown) => console.error(`Login email to ${email} failed:`, error));
+      .catch((error: unknown) => console.error(`Sign-in code email to ${email} failed:`, error));
     return 'sent';
   }
 
-  /** Consumes the login token and returns a new session token, or `null` when the link is not valid. */
-  static verify(deps: AuthDeps, token: string): string | null {
+  /**
+   * Consumes the code and returns a new session token, or `null` when the code is wrong, expired or used. After
+   * too many wrong tries the code is deleted, so it cannot be guessed.
+   */
+  static verify(deps: AuthDeps, email: string, code: string): string | null {
     const now = deps.clock.now();
-    const email = deps.repository.useLoginToken(Tokens.hash(token), now);
-    if (!email || !deps.adminEmails.has(email)) return null;
+    const saved = deps.repository.findCode(email);
+    if (!saved) return null;
+    if (saved.expiresAt <= now) {
+      deps.repository.deleteCode(email);
+      return null;
+    }
+    if (saved.codeHash !== Tokens.hash(code)) {
+      if (saved.failedAttempts + 1 >= MAX_FAILED_ATTEMPTS) deps.repository.deleteCode(email);
+      else deps.repository.countFailedAttempt(email);
+      return null;
+    }
 
+    deps.repository.deleteCode(email);
+    if (!deps.adminEmails.has(email)) return null;
     const sessionToken = Tokens.random();
     deps.repository.addSession(Tokens.hash(sessionToken), email, now + SESSION_TTL_MS, now);
     return sessionToken;

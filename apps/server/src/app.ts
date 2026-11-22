@@ -17,29 +17,30 @@ export type AppDeps = {
   database: Database;
   clock: Clock;
   mailer: Mailer;
-  appUrl: string;
+  generateCode: () => string;
+  /** Production only: the dev server runs on plain http. */
+  secureCookie: boolean;
   adminEmails: ReadonlySet<string>;
 };
 
 const SESSION_COOKIE = 'session';
 
-export function createApp({ version, database, clock, mailer, appUrl, adminEmails }: AppDeps) {
+export function createApp({ version, database, clock, mailer, generateCode, secureCookie, adminEmails }: AppDeps) {
   const auth: AuthDeps = {
     repository: new AuthRepository(database),
     clock,
     mailer,
     limiter: new RateLimiter(clock, 5, 15 * 60 * 1000),
-    appUrl,
+    generateCode,
     adminEmails,
   };
   const events = new EventRepository(database);
-  const secure = appUrl.startsWith('https:');
   const sessionCookie = (value: string, maxAgeMs: number) =>
     new Bun.Cookie(SESSION_COOKIE, value, {
       httpOnly: true,
       sameSite: 'lax',
       path: '/',
-      secure,
+      secure: secureCookie,
       maxAge: maxAgeMs / 1000,
     }).serialize();
 
@@ -55,18 +56,20 @@ export function createApp({ version, database, clock, mailer, appUrl, adminEmail
       GET: () => Response.json({ status: 'ok', version } satisfies HealthResponse),
     },
 
-    '/api/auth/request-link': {
+    '/api/auth/request-code': {
       POST: async (request: BunRequest) => {
         const email = Validation.email(field(await readJson(request), 'email'));
         if (!email) return errorResponse(400, 'invalid_input');
-        return AuthUseCase.requestLink(auth, email) === 'sent' ? noContent() : errorResponse(429, 'too_many_requests');
+        return AuthUseCase.requestCode(auth, email) === 'sent' ? noContent() : errorResponse(429, 'too_many_requests');
       },
     },
     '/api/auth/verify': {
       POST: async (request: BunRequest) => {
-        const token = field(await readJson(request), 'token');
-        const sessionToken = typeof token === 'string' ? AuthUseCase.verify(auth, token) : null;
-        if (!sessionToken) return errorResponse(401, 'invalid_link');
+        const body = await readJson(request);
+        const email = Validation.email(field(body, 'email'));
+        const code = field(body, 'code');
+        const sessionToken = email && typeof code === 'string' ? AuthUseCase.verify(auth, email, code) : null;
+        if (!sessionToken) return errorResponse(401, 'invalid_code');
         return new Response(null, {
           status: 204,
           headers: { 'set-cookie': sessionCookie(sessionToken, SESSION_TTL_MS) },
