@@ -1,4 +1,5 @@
 import type { AuthRepository } from '../infrastructure/database/auth-repository.ts';
+import { LoginCodeMail } from './login-code-mail.ts';
 import type { Clock, Mailer } from './ports.ts';
 import type { RateLimiter } from './rate-limiter.ts';
 import { Tokens } from './tokens.ts';
@@ -28,20 +29,7 @@ export class AuthUseCase {
     const code = deps.generateCode();
     deps.repository.saveCode(email, Tokens.hash(code), deps.clock.now() + CODE_TTL_MS);
     deps.mailer
-      .send({
-        to: email,
-        subject: 'Ton code de connexion — Secret Santa',
-        text: [
-          'Bonjour,',
-          '',
-          'Voici ton code pour te connecter à l’organisation du Secret Santa :',
-          '',
-          code,
-          '',
-          'Il est valable 15 minutes et ne fonctionne qu’une seule fois.',
-          'Si tu n’as pas demandé ce code, ignore ce message.',
-        ].join('\n'),
-      })
+      .send(LoginCodeMail.build(email, code))
       .catch((error: unknown) => console.error(`Sign-in code email to ${email} failed:`, error));
     return 'sent';
   }
