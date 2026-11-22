@@ -30,7 +30,7 @@ export function DrawnPanel({ event, setEvent }: EventSectionProps) {
 
   return (
     <section className='flex flex-col gap-3'>
-      <Alert>
+      <Alert className='animate-in fade-in slide-in-from-bottom-3 duration-700'>
         <LockIcon />
         <AlertTitle>Le tirage est fait.</AlertTitle>
         <AlertDescription>Personne, pas même toi, ne voit qui offre à qui.</AlertDescription>

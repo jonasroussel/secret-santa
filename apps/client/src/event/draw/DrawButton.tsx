@@ -17,9 +17,11 @@ import { api } from '@/lib/api.ts';
 import { errorMessage } from '@/lib/errors.ts';
 
 import type { EventSectionProps } from '../types.ts';
-import { DrawAnimation, drawAnimationDuration } from './DrawAnimation.tsx';
+import { drawAnimationDuration, type DrawAnimationState } from './DrawAnimation.tsx';
 
-export function DrawButton({ event, setEvent }: EventSectionProps) {
+type Props = EventSectionProps & { setDrawAnimation: (state: DrawAnimationState) => void };
+
+export function DrawButton({ event, setEvent, setDrawAnimation }: Props) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const enoughParticipants = event.participants.length >= 3;
@@ -27,15 +29,19 @@ export function DrawButton({ event, setEvent }: EventSectionProps) {
   async function draw() {
     setPending(true);
     setError(null);
+    setDrawAnimation('playing');
     const animationEnd = new Promise((resolve) => setTimeout(resolve, drawAnimationDuration()));
     const result = await api<SecretSantaEvent>('/api/event/draw', { method: 'POST' });
     if (!result.ok) {
+      setDrawAnimation(null);
       setPending(false);
       setError(errorMessage(result.error));
       return;
     }
     await animationEnd;
+    window.scrollTo({ top: 0 });
     setEvent(result.data);
+    setDrawAnimation('leaving');
   }
 
   return (
@@ -64,7 +70,6 @@ export function DrawButton({ event, setEvent }: EventSectionProps) {
               Faire le tirage
             </Button>
           </DialogFooter>
-          {pending && <DrawAnimation names={event.participants.map((participant) => participant.name)} />}
         </DialogContent>
       </Dialog>
       <p className='text-muted-foreground text-center text-sm'>

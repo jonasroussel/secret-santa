@@ -22,8 +22,17 @@ const spread = (max: number) => (Math.random() * 2 - 1) * max;
 const pose = (x: number, y: number, tilt: number, flip: number, scale: number) =>
   `translate(${x}px, ${y}px) rotate(${tilt}deg) rotateY(${flip}deg) scale(${scale})`;
 
+export type DrawAnimationState = 'playing' | 'leaving' | null;
+
+type Props = {
+  names: string[];
+  /** Fades the overlay out over the page underneath, then clears the animation state. */
+  leaving: boolean;
+  setDrawAnimation: (state: DrawAnimationState) => void;
+};
+
 /** Name cards flip face-down, shuffle and drop into a gift box that closes; never shows who gives to whom. */
-export function DrawAnimation({ names }: { names: string[] }) {
+export function DrawAnimation({ names, leaving, setDrawAnimation }: Props) {
   const stage = useRef<HTMLDivElement>(null);
   const reduced = reducedMotion();
   const cards = names.slice(0, 9);
@@ -93,6 +102,35 @@ export function DrawAnimation({ names }: { names: string[] }) {
     }
     return () => animations.forEach((animation) => animation.cancel());
   }, [cards.length, reduced]);
+
+  useLayoutEffect(() => {
+    if (!leaving) return;
+    const root = stage.current!;
+    const exits = [
+      root.animate([{ opacity: 1 }, { opacity: 0 }], {
+        duration: reduced ? 400 : 700,
+        delay: reduced ? 0 : 150,
+        easing: 'ease-in-out',
+        fill: 'forwards',
+      }),
+    ];
+    if (!reduced) {
+      exits.push(
+        root
+          .querySelector('[data-box]')!
+          .animate([{ transform: 'scale(1)' }, { transform: 'scale(0.8) translateY(-16px)', opacity: 0 }], {
+            duration: 450,
+            easing: 'ease-in-out',
+            fill: 'forwards',
+          }),
+      );
+    }
+    exits[0]!.finished.then(
+      () => setDrawAnimation(null),
+      () => {},
+    );
+    return () => exits.forEach((exit) => exit.cancel());
+  }, [leaving, reduced, setDrawAnimation]);
 
   return createPortal(
     <div ref={stage} role='status' className='bg-background fixed inset-0 z-60 overflow-hidden [perspective:900px]'>
